@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SSUST demo</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+</head>
+<body>
+  <main class="desk">
+    <section class="notes">
+      <h1>SSUST</h1>
+      <p class="full">Smart Spending UST. The ZUNO five funds and three holes, in HKD.</p>
+      <ol>
+        <li>Food and Drinks left is HK$700, so today is HK$140 and tomorrow is HK$140. Main meals HK$660, Snacks HK$40, Fixed Bills HK$200, Experience HK$120, Development HK$80, Long-term Savings HK$500.</li>
+        <li>Add a Main meal of HK$48. Today left becomes HK$92. Main meals become HK$612. Snacks stay HK$40.</li>
+        <li>Add a Main meal of HK$100. One cover takes HK$8 from Snacks and tomorrow goes from HK$140 to HK$138. The other borrows HK$8 from Experience and tomorrow stays HK$140. Cancel leaves the day unchanged.</li>
+        <li>Add a Main meal of HK$70 instead. A notice appears: HK$118 of HK$140. Tomorrow stays HK$140.</li>
+        <li>Add Experience HK$150. Experience covers HK$120, so HK$30 is borrowed from Development, HK$80 to HK$50.</li>
+        <li>In Settings, open “Week already over” and add a Main meal of HK$30. That HK$30 comes out of Long-term Savings, HK$500 to HK$470.</li>
+      </ol>
+      <p class="fine">Map loads streets and named places from OpenStreetMap. A pin is blue when the map has no price. Green, yellow, and red are used only when OpenStreetMap itself says cheap, normal, or expensive. Fixed Bills never borrows from the other funds. Double-click run.bat, then keep that window open. The page is http://127.0.0.1:8765. The phone is the frontend. The Python server checks every amount before it saves. SAMPLE data stays in memory on this computer and clears when you close the server. SSUST does not connect to a bank, does not lock a card, and does not move real money.</p>
+    </section>
+    <section class="phone" aria-label="SSUST app">
+      <header class="top">
+        <div class="top-row">
+          <div>
+            <div class="brand">SSUST</div>
+            <div class="sub">Smart Spending UST</div>
+          </div>
+          <div class="chip">SAMPLE</div>
+        </div>
+      </header>
+      <div class="screen" id="screen"></div>
+      <nav class="nav" id="nav">
+        <button type="button" data-screen="today">Today</button>
+        <button type="button" data-screen="map">Map</button>
+        <button type="button" data-screen="week">Week</button>
+        <button type="button" data-screen="settings">Settings</button>
+      </nav>
+      <div class="sheet" id="sheet" hidden></div>
+    </section>
+  </main>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
