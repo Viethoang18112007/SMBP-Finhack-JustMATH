@@ -95,7 +95,9 @@ The app has **no demo**: no Live/Demo switch, no sample weeks, tour, simulated t
 
 **Real Apple Pay payments (Shortcuts):** Settings > **Apple Pay and widget** gives the URL and this phone's header to paste into an iOS Shortcuts automation ("When I tap any card in Wallet" > Get Contents of URL, POST, JSON `amount`, `merchant`, `card`). Each Apple Pay payment then waits in Today under **To review** (marked Apple Pay, not Simulated); nothing is spent until you confirm it. The amount is read from text like "HK$38.00" or a JSON number, always into integer cents.
 
-**Widget (Shortcuts):** the same page explains a shortcut that reads `GET /api/shortcut/today` (one line such as "SSUST: HK$82.29 left today · 3 day streak · 1 to review") and shows it; iOS can put that shortcut on the home screen as a widget, and a tap shows the line. A native WidgetKit widget is not built: it needs a Swift extension target, an App Group and more signing profiles that cannot be built or checked here without a Mac.
+**SSUST widget (WidgetKit, iOS 17+):** the Xcode project has a widget extension (`ios/App/SSUSTWidget`, bundle id `com.adamattar.ssust.widget`, small, medium and lock screen sizes). It reads `GET /api/widget` (JSON: `ready`, `left` in cents, `leftText`, `over`, `streak`, `shape`, `toReview`) with the phone code pasted once in Edit Widget, refreshes about every 30 minutes and keeps the last answer for when the server sleeps. It is built only on Codemagic and needs its own App Store provisioning profile for that bundle id; it has not been run on a device yet.
+
+**Widget (Shortcuts, iOS 16 and older):** the same page explains a shortcut that reads `GET /api/shortcut/today` (one line such as "SSUST: HK$82.29 left today · 3 day streak · 1 to review") and shows it; iOS can put that shortcut on the home screen as a widget, and a tap shows the line.
 
 On Render's free plan the disk is wiped when the service restarts or sleeps, so app data does not last there; a paid disk (set `SSUST_DATA` to it) would keep it.
 
@@ -184,7 +186,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (681 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (689 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 
@@ -390,6 +392,7 @@ All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: 
 | `GET /api/insights` | | This week's pace warnings and breakdown (the same as `insights` in the state) |
 | `GET /api/feedback` | | The latest feedback (`{"feedback": [{"id", "rating", "text", "createdAt"}]}`), newest first |
 | `POST /api/shortcut/wallet` | `{"amount": "HK$38.00" or 38, "merchant"?: "...", "card"?: "..."}` (iOS Shortcuts, with `X-SSUST-Device`) | Add a real Apple Pay payment to To review (source `wallet`). Every call is a new item |
+| `GET /api/widget` | (with `X-SSUST-Device`) | JSON for the SSUST home screen widget: left today (cents and HK$ text), streak and shape, how many wait for review |
 | `GET /api/shortcut/today` | (with `X-SSUST-Device`) | Plain text, one line: left today, the streak, how many wait for review |
 | `POST /api/feedback` | `{"rating": 1 to 5, "text"?: "<at most 500 characters>"}` | Save feedback about the app; answers with the latest feedback |
 | `POST /api/assistant/parse` | `{"text": "$50 KFC dinner"}` | `{"ok", "amount" (cents), "category", "note", "reason", "confident", "typo", "chain"}` or `{"ok": false, "error"}`. Reads only |

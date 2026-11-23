@@ -2,6 +2,7 @@
 // iOS Shortcuts app. Both call the SSUST server with this phone's id (X-SSUST-Device):
 //   POST /api/shortcut/wallet  {"amount", "merchant", "card"}  -> Today > To review
 //   GET  /api/shortcut/today   -> one line: what is left today, the streak, what waits for review
+// The SSUST widget (WidgetKit, iOS 17+) reads GET /api/widget with the same phone code.
 // Nothing is spent until the payment is confirmed in the app.
 
 import { API_BASE, deviceId } from "../config.js";
@@ -31,7 +32,13 @@ export function shortcutsCard() {
         <li>Add three text fields: <code>amount</code> = Shortcut Input &gt; Amount, <code>merchant</code> = Merchant, <code>card</code> = Card or Pass.</li>
         <li>Pay with Apple Pay: the payment shows in Today under <strong>To review</strong>. Pick the fund and confirm.</li>
       </ol>
-      <h3 class="guide-title">Widget: what is left today</h3>
+      <h3 class="guide-title">SSUST widget on the home screen</h3>
+      <ol class="guide">
+        <li>Hold an empty spot on the home screen, <strong>Edit</strong>, <strong>Add Widget</strong>, then <strong>SSUST</strong>.</li>
+        <li>Hold the new widget, <strong>Edit Widget</strong>, and paste the header value above as <strong>Phone code</strong>.</li>
+        <li>It shows what is left today, your streak and what waits for review. It updates about every 30 minutes.</li>
+      </ol>
+      <h3 class="guide-title">Shortcuts widget (iOS 16 and older)</h3>
       ${copyRow("URL", today)}
       <ol class="guide">
         <li>In <strong>Shortcuts</strong>, tap <strong>+</strong> and name it "SSUST today".</li>

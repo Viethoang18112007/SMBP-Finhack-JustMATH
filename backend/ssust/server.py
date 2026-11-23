@@ -293,6 +293,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(self.service.insights())
         elif path == "/api/feedback":
             self.send_json(self.service.feedback())
+        elif path == "/api/widget":
+            self.send_json(self.service.widget())
         elif path == "/api/shortcut/today":
             self.send_body(200, self.service.shortcut_today().encode("utf-8"), "text/plain; charset=utf-8")
         else:

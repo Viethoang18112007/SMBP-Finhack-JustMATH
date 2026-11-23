@@ -434,6 +434,17 @@ class Service:
             parts.append(f"{len(state['inbox'])} to review")
         return " · ".join(parts)
 
+    def widget(self):
+        """What the iOS home screen widget shows: today's money left, the streak and the count waiting
+        for review. Integer cents plus the HK$ text, so the widget never formats money itself."""
+        state = self.get_state()
+        view = state["view"]
+        streak = state["rewards"]["streak"] if state["rewards"] else None
+        left = view["todayRemaining"] if view["ready"] else 0
+        return {"ready": bool(view["ready"]), "left": left, "leftText": money.hk(abs(left)), "over": left < 0,
+                "streak": streak["days"] if streak else 0, "shape": (streak["shape"] if streak else None) or "square",
+                "toReview": len(state["inbox"])}
+
     def _pending(self, item_id):
         if type(item_id) is not int or not 0 < item_id < 2 ** 63:
             raise ServiceError("Unknown item.")

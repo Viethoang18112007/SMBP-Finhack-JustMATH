@@ -3,6 +3,8 @@ Shortcuts widget. The phone's id comes in the X-SSUST-Device header, like the ap
 
 import http.client
 import json
+import plistlib
+import re
 import unittest
 from pathlib import Path
 
@@ -27,7 +29,7 @@ class WalletAmount(unittest.TestCase):
                 self.assertIsNone(wallet_amount(raw))
 
 
-class WalletRoute(ApiTest):
+class DeviceClient(ApiTest):
     def post(self, body, device=DEVICE, path="/api/shortcut/wallet"):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
         try:
@@ -62,6 +64,8 @@ class WalletRoute(ApiTest):
         self.assertEqual(status, 200)
         return json.loads(payload)
 
+
+class WalletRoute(DeviceClient):
     def test_a_tap_lands_in_to_review_for_that_phone_only(self):
         status, _, payload = self.post({"amount": "HK$38.00", "merchant": "Pacific Coffee", "card": "Visa 1234"})
         self.assertEqual(status, 200, payload)
@@ -110,6 +114,93 @@ class WalletRoute(ApiTest):
         text = self.get("/api/shortcut/today")[2].decode("utf-8")
         self.assertTrue(text.startswith("SSUST: HK$170 left today"), text)
         self.assertIn("1 to review", text)
+
+
+class WidgetRoute(DeviceClient):
+    """GET /api/widget: what the iOS home screen widget shows, as JSON, for the phone in the header."""
+
+    def widget(self, device=DEVICE):
+        status, headers, payload = self.get("/api/widget", device)
+        self.assertEqual(status, 200, payload)
+        self.assertIn("application/json", headers["Content-Type"])
+        return json.loads(payload)
+
+    def test_before_a_budget(self):
+        self.assertEqual(self.widget(), {"ready": False, "left": 0, "leftText": "HK$0", "over": False,
+                                         "streak": 0, "shape": "square", "toReview": 0})
+
+    def test_with_a_budget_and_a_payment_to_review(self):
+        self.post({"amount": "12", "merchant": "Bakery"}, path="/api/shortcut/wallet")
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            body = json.dumps(FUNDS_TEXT).encode("utf-8")
+            conn.putrequest("POST", "/api/settings", skip_host=True, skip_accept_encoding=True)
+            conn.putheader("Host", f"127.0.0.1:{self.port}")
+            conn.putheader("X-SSUST-Device", DEVICE)
+            conn.putheader("Content-Type", "application/json")
+            conn.putheader("Content-Length", str(len(body)))
+            conn.endheaders(body)
+            self.assertEqual(conn.getresponse().status, 200)
+        finally:
+            conn.close()
+        data = self.widget()
+        self.assertTrue(data["ready"])
+        self.assertEqual((data["left"], data["leftText"], data["over"]), (17000, "HK$170", False))
+        self.assertEqual(data["toReview"], 1)
+        self.assertIsInstance(data["streak"], int)
+
+    def test_bad_device_refused(self):
+        self.assertEqual(self.get("/api/widget", device="bad")[0], 400)
+
+
+class NativeWidget(unittest.TestCase):
+    """A WidgetKit extension in the Xcode project. It cannot be built here (no Mac): these checks
+    keep the project file and the Swift code consistent with the server and with Codemagic."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_extension_target_is_in_the_project_and_embedded(self):
+        project = self.read("ios", "App", "App.xcodeproj", "project.pbxproj")
+        self.assertIn('productType = "com.apple.product-type.app-extension";', project)
+        self.assertIn("PRODUCT_BUNDLE_IDENTIFIER = com.adamattar.ssust.widget;", project)
+        self.assertIn("SSUSTWidget.appex in Embed Foundation Extensions", project)
+        self.assertIn("dstSubfolderSpec = 13;", project)
+        self.assertIn("INFOPLIST_FILE = SSUSTWidget/Info.plist;", project)
+        # The Codemagic sed sets every build number at once: app and widget must match for Apple.
+        versions = set(re.findall(r"CURRENT_PROJECT_VERSION = (\d+);", project))
+        self.assertEqual(len(versions), 1, versions)
+        marketing = set(re.findall(r"MARKETING_VERSION = ([\d.]+);", project))
+        self.assertEqual(len(marketing), 1, marketing)
+        self.assertEqual(project.count("{"), project.count("}"))
+        self.assertEqual(project.count("("), project.count(")"))
+
+    def test_object_ids_are_unique(self):
+        project = self.read("ios", "App", "App.xcodeproj", "project.pbxproj")
+        defined = re.findall(r"^\t\t([0-9A-F]{24}) (?:/\*.*?\*/ )?= \{", project, re.M)
+        self.assertEqual(len(defined), len(set(defined)))
+        for ref in set(re.findall(r"\b([0-9A-F]{24})\b", project)):
+            with self.subTest(ref=ref):
+                self.assertIn(ref, defined)
+
+    def test_extension_info_and_code(self):
+        with open(ROOT / "ios" / "App" / "SSUSTWidget" / "Info.plist", "rb") as handle:
+            info = plistlib.load(handle)
+        self.assertEqual(info["NSExtension"]["NSExtensionPointIdentifier"], "com.apple.widgetkit-extension")
+        swift = self.read("ios", "App", "SSUSTWidget", "SSUSTWidget.swift")
+        for word in ("@main", "WidgetBundle", "AppIntentConfiguration", "X-SSUST-Device", "/api/widget",
+                     "https://ssust-api.onrender.com", "leftText", "toReview", "containerBackground"):
+            self.assertIn(word, swift)
+        self.assertNotIn("claude", swift.lower())
+
+    def test_codemagic_signs_the_widget_with_the_app(self):
+        # Codemagic fetches profiles for every bundle id that starts with the app's id.
+        text = self.read("codemagic.yaml")
+        self.assertIn("bundle_identifier: com.adamattar.ssust", text)
+
+    def test_settings_explains_the_widget(self):
+        guide = self.read("frontend", "js", "screens", "shortcuts.js")
+        self.assertIn("SSUST widget", guide)
 
 
 class AppScreens(unittest.TestCase):
