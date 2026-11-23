@@ -8,6 +8,7 @@ import { tanksHtml } from "./tanks.js";
 import { reviewCard } from "../inbox.js";
 import { insightsCard } from "./insights.js";
 import { rewardsStrip } from "../rewards.js";
+import { NATIVE } from "../config.js";
 
 const FUND_ORDER = ["main", "snack", "fixed", "experience", "development", "savings"];
 // The fund bar colour follows the tank tone: amber from 50% down, red under 20%.
@@ -86,6 +87,14 @@ function setupCard(view) {
     </section>`;
 }
 
+// The web demo's extra cards. The iPhone app keeps Today to the basics: what is left today, scan,
+// what waits for review, the funds and today's payments (the analysis stays on Week).
+function extraCards() {
+  return `${cookedCard(state.data.cooked)}
+    ${projectionCard(state.data.projection, false, state.data.cooked && state.data.cooked.ready ? state.data.cooked.zero : undefined)}
+    ${insightsCard()}`;
+}
+
 export function todayScreen(view) {
   if (!view.ready) return setupCard(view);
   const items = paymentsOn(state.data.today);
@@ -116,13 +125,11 @@ export function todayScreen(view) {
     </button>
     ${rewardsStrip()}
     ${reviewCard()}
-    ${cookedCard(state.data.cooked)}
-    ${projectionCard(state.data.projection, false, state.data.cooked && state.data.cooked.ready ? state.data.cooked.zero : undefined)}
-    ${insightsCard()}
+    ${NATIVE ? "" : extraCards()}
     <section class="card" id="funds-card" aria-labelledby="funds-label">
-      <div class="card-head"><h2 class="title" id="funds-label">Funds this week</h2>${viewToggle()}</div>
-      ${state.fundView === "tanks" ? tanksHtml(state.data.tanks) : `<ul class="funds">${fundList(view)}</ul>`}
-      ${flexNote(view)}
+      <div class="card-head"><h2 class="title" id="funds-label">Funds this week</h2>${NATIVE ? "" : viewToggle()}</div>
+      ${state.fundView === "tanks" && !NATIVE ? tanksHtml(state.data.tanks) : `<ul class="funds">${fundList(view)}</ul>`}
+      ${NATIVE ? "" : flexNote(view)}
     </section>
     <section class="card" aria-labelledby="pays-label">
       <h2 class="title" id="pays-label">Today's payments</h2>

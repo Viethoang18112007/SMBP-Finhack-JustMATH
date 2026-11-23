@@ -53,10 +53,6 @@ export function settingsScreen(view) {
   // The iPhone app has no demo: only your own data, no sample weeks, tour or simulated payments.
   if (NATIVE) {
     return `${budgetCard}
-    <section class="card" aria-labelledby="about-title">
-      <h2 class="title" id="about-title">Your data</h2>
-      <p class="sub">Your budget and payments are kept on the SSUST server for this phone only.</p>
-    </section>
     ${shortcutsCard()}`;
   }
   const phone = state.phoneView;

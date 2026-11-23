@@ -432,10 +432,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(self.service.add_payment(amount, category, data.get("note", ""), choice, request_id, place))
 
     def post_wallet(self, data):
-        merchant, card = data.get("merchant"), data.get("card")
-        if not all(value is None or isinstance(value, str) for value in (merchant, card)):
-            raise BadRequest("Merchant and card are text.")
-        self.send_json(self.service.wallet_tap(data.get("amount"), merchant, card))
+        # Whatever a Shortcut sends: a merchant or card that is not text is left out, never refused.
+        self.send_json(self.service.wallet_tap(data.get("amount"), data.get("merchant"), data.get("card")))
 
     def post_feedback(self, data):
         self.send_json(self.service.add_feedback(data.get("rating"), data.get("text", "")))

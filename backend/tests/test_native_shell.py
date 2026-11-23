@@ -129,7 +129,8 @@ class Codemagic(unittest.TestCase):
 
     def test_publishes_to_testflight_through_the_integration(self):
         self.assertIn("auth: integration", self.text)
-        self.assertIn("submit_to_testflight: true", self.text)
+        # Upload without asking for an external beta review (that failed while another build was in review).
+        self.assertIn("submit_to_testflight: false", self.text)
 
     def test_no_secret_in_the_file(self):
         self.assertNotIn("BEGIN PRIVATE KEY", self.text)

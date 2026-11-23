@@ -84,11 +84,27 @@ def _feedback_text(text):
     return cleaned
 
 
+def _decimal_text(text):
+    """Digits with one "." as the decimal point, from digits with "," and "." in any local style:
+    "38,50" (French), "1.234,50" (German), "1,234.50" or "1,234" (English). None when unclear."""
+    if "," in text and "." in text:
+        point = "," if text.rfind(",") > text.rfind(".") else "."
+        text = text.replace("." if point == "," else ",", "")
+        return text.replace(",", ".") if text.count(point) == 1 else None
+    if "," in text:
+        if re.fullmatch(r"-?\d+,\d{1,2}", text):
+            return text.replace(",", ".")
+        if re.fullmatch(r"-?\d{1,3}(,\d{3})+", text):
+            return text.replace(",", "")
+        return None
+    return text
+
+
 def wallet_amount(raw):
     """Integer cents from what an iOS Shortcut sends for a Wallet transaction, or None.
 
-    Text like "HK$38.00", "$38.50", "38.00 HKD" or "HK$ 1,234.50", or a JSON number (38.5).
-    A number is read through its shortest decimal text, never as a float sum.
+    Text like "HK$38.00", "38,00 $HK" (an iPhone in French), "38.00 HKD" or "HK$ 1,234.50", or a
+    JSON number (38.5). A number is read through its shortest decimal text, never as a float sum.
     """
     if isinstance(raw, bool):
         return None
@@ -99,11 +115,35 @@ def wallet_amount(raw):
         if "e" in text.lower() or "n" in text.lower():  # exponent, nan, inf
             return None
     elif isinstance(raw, str):
-        text = raw.replace(" ", " ").upper().replace("HKD", "").replace("HK$", "").replace("$", "")
-        text = text.replace(" ", "")
+        # Keep digits and separators: currency signs, letters and every kind of space go.
+        text = _decimal_text("".join(ch for ch in raw if (ch.isascii() and ch.isdigit()) or ch in ",.-"))
+        if not text:
+            return None
     else:
         return None
     return parse_amount(text)
+
+
+def _shown(raw):
+    """What a Shortcut sent as the amount, as short printable text for the setup check."""
+    if isinstance(raw, str):
+        text = "".join(ch if ch.isprintable() else " " for ch in raw)
+    elif isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        text = repr(raw)
+    elif raw is None:
+        text = "(nothing)"
+    else:
+        text = f"({type(raw).__name__})"
+    return text.replace("<", " ").replace(">", " ").strip()[:40]
+
+
+def _wallet_last(s):
+    """The last message from the Apple Pay automation (Settings shows it), or None."""
+    try:
+        last = json.loads(s.get_meta("wallet_last") or "null")
+    except ValueError:
+        return None
+    return last if isinstance(last, dict) else None
 
 
 def _campus(s):
@@ -175,6 +215,7 @@ class Service:
         state["cooked"] = cooked.cooked_score(opening if ready else None, state["view"]["fundsNow"] if ready else None,
                                               state["projection"], runout)
         state["inbox"] = self._inbox(s) if current else []
+        state["walletLast"] = _wallet_last(s)
         state["connected"] = _connected(s)
         state["campus"] = _campus(s)
         state["campuses"] = [{"id": c["id"], "name": c["name"]} for c in places.CAMPUSES.values()]
@@ -405,18 +446,28 @@ class Service:
         """A real Apple Pay payment from an iOS Shortcuts automation ("When I tap any card in
         Wallet"). It waits in To review like the others; nothing is spent until it is confirmed.
         Every run is a new item (the Shortcut has no id of its own)."""
+        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
         cents = wallet_amount(amount)
-        if cents is None or cents > MAX_CENTS:
-            raise ServiceError("Enter an amount greater than zero.")
+        merchant = merchant if isinstance(merchant, str) else None
+        card = card if isinstance(card, str) else None
         try:
             merchant = clean_note(merchant) or "Apple Pay payment"
             card = clean_note(card) or "Apple Pay"
         except ValueError:
-            raise ServiceError("Merchant and card are text.") from None
-        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            merchant, card = "Apple Pay payment", "Apple Pay"
         with self._books[self.mode()].session(write=True) as s:
-            s.add_inbox({"externalId": f"wallet-{uuid.uuid4().hex}", "source": WALLET_SOURCE, "amount": cents,
-                         "merchant": merchant, "card": card, "receivedAt": stamp})
+            # Kept so Settings can show what the automation last sent, accepted or not.
+            if cents is None or cents > MAX_CENTS:
+                last = {"at": stamp, "ok": False, "amount": _shown(amount),
+                        "detail": "The amount was not understood. Use Shortcut Input > Amount."}
+                s.set_meta("wallet_last", json.dumps(last))
+            else:
+                s.add_inbox({"externalId": f"wallet-{uuid.uuid4().hex}", "source": WALLET_SOURCE, "amount": cents,
+                             "merchant": merchant, "card": card, "receivedAt": stamp})
+                last = {"at": stamp, "ok": True, "amount": _shown(amount), "detail": f"{money.hk(cents)} from {merchant}"}
+                s.set_meta("wallet_last", json.dumps(last))
+        if not last["ok"]:
+            raise ServiceError("Enter an amount greater than zero.")
         return {"ok": True, "amount": cents, "merchant": merchant}
 
     def shortcut_today(self):
@@ -435,13 +486,31 @@ class Service:
         return " · ".join(parts)
 
     def widget(self):
-        """What the iOS home screen widget shows: today's money left, the streak and the count waiting
-        for review. Integer cents plus the HK$ text, so the widget never formats money itself."""
+        """What the iOS home screen widget shows: today's money left, today's spending against the
+        allowance, every fund, today's last payments, the streak and the count waiting for review.
+        Integer cents plus the HK$ text, so the widget never formats or computes money."""
         state = self.get_state()
         view = state["view"]
         streak = state["rewards"]["streak"] if state["rewards"] else None
-        left = view["todayRemaining"] if view["ready"] else 0
-        return {"ready": bool(view["ready"]), "left": left, "leftText": money.hk(abs(left)), "over": left < 0,
+        ready = bool(view["ready"])
+        left = view["todayRemaining"] if ready else 0
+        allowance = view["allowance"] if ready else 0
+        spent = view["spentToday"] if ready else 0
+        if allowance > 0:
+            ratio = min(1000, spent * 1000 // allowance)
+        else:
+            ratio = 1000 if spent > 0 else 0
+        funds = [{"fund": t["fund"], "name": t["name"], "left": t["remaining"], "leftText": money.hk(t["remaining"]),
+                  "allocationText": money.hk(t["allocation"]), "level": max(0, min(1000, t["level"] // 10))}
+                 for t in (state["tanks"] or [])] if ready else []
+        today = [p for p in state["payments"] if p["date"] == state["today"]]
+        today.sort(key=lambda p: p["id"], reverse=True)
+        payments = [{"label": p["note"] or money.FUND_NAMES[p["category"]], "amountText": money.hk(p["amount"]),
+                     "fund": p["category"]} for p in today[:3]]
+        return {"ready": ready, "left": left, "leftText": money.hk(abs(left)), "over": left < 0,
+                "allowanceText": money.hk(allowance), "spentText": money.hk(spent), "spentRatio": ratio,
+                "tomorrowText": money.hk(view["tomorrow"]) if ready else money.hk(0), "daysLeft": view["daysLeft"],
+                "funds": funds, "payments": payments,
                 "streak": streak["days"] if streak else 0, "shape": (streak["shape"] if streak else None) or "square",
                 "toReview": len(state["inbox"])}
 

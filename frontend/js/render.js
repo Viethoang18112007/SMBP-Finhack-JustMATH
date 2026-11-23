@@ -18,6 +18,7 @@ import { mapScreen } from "./screens/map.js";
 import { settingsScreen } from "./screens/settings.js";
 import { todayScreen } from "./screens/today.js";
 import { weekScreen } from "./screens/week.js";
+import { syncWidget } from "./widgetsync.js";
 
 const screens = { today: todayScreen, week: weekScreen, day: dayScreen, settings: settingsScreen, map: mapScreen, feedback: feedbackScreen };
 // Screens where the Add payment button sits above the navigation.
@@ -138,6 +139,7 @@ export function render() {
   renderHome();
   renderDeskSide();
   bind();
+  syncWidget(); // iPhone app: the home screen widget follows the numbers
 }
 
 // Picking a fund updates the chips and the preview in place, so focus stays on the chip.

@@ -19,12 +19,16 @@ DEVICE = "c" * 32
 class WalletAmount(unittest.TestCase):
     def test_formats_a_shortcut_can_send(self):
         for raw, cents in (("HK$38.00", 3800), ("$38.50", 3850), ("38", 3800), ("HK$ 1,234.50", 123450),
-                           ("38.00 HKD", 3800), (" 38.00", 3800), (38, 3800), (38.5, 3850), (12.34, 1234)):
+                           ("38.00 HKD", 3800), (" 38.00", 3800), (38, 3800), (38.5, 3850), (12.34, 1234),
+                           # An iPhone set to French (or German) writes a decimal comma and spaces in thousands.
+                           ("38,00 $HK", 3800), ("HK$38,50", 3850), ("38,5 $HK", 3850),
+                           ("1 234,50 $HK", 123450), ("1.234,50 HK$", 123450), ("1,234", 123400),
+                           ("HK$1,234.50", 123450)):
             with self.subTest(raw=raw):
                 self.assertEqual(wallet_amount(raw), cents)
 
     def test_refused(self):
-        for raw in ("", "abc", "0", "-5", "38,50", None, True, [], 0, -1, 1e12, 12.345):
+        for raw in ("", "abc", "0", "-5", "38,5055", "1,2,3", None, True, [], 0, -1, 1e12, 12.345):
             with self.subTest(raw=raw):
                 self.assertIsNone(wallet_amount(raw))
 
@@ -85,10 +89,29 @@ class WalletRoute(DeviceClient):
         self.assertEqual(state["inbox"][0]["card"], "Apple Pay")  # no card name sent
 
     def test_bad_taps_are_refused(self):
-        for body in ({"merchant": "x"}, {"amount": "abc"}, {"amount": "0"}, {"amount": "38", "merchant": 5}):
+        for body in ({"merchant": "x"}, {"amount": "abc"}, {"amount": "0"}):
             with self.subTest(body=body):
                 self.assertEqual(self.post(body)[0], 400)
         self.assertEqual(self.post({"amount": "38"}, device="bad")[0], 400)
+
+    def test_the_last_message_is_kept_to_check_the_setup(self):
+        self.assertIsNone(self.device_state()["walletLast"])
+        self.assertEqual(self.post({"amount": "abc", "merchant": "Bakery"})[0], 400)
+        last = self.device_state()["walletLast"]
+        self.assertFalse(last["ok"])
+        self.assertEqual(last["amount"], "abc")
+        self.assertIn("amount", last["detail"].lower())
+        self.post({"amount": "38,00 $HK", "merchant": "Bakery"})
+        last = self.device_state()["walletLast"]
+        self.assertTrue(last["ok"])
+        self.assertEqual(last["detail"], "HK$38 from Bakery")
+        self.assertRegex(last["at"], r"^\d{4}-\d\d-\d\dT")
+
+    def test_a_merchant_that_is_not_text_is_ignored(self):
+        status, _, payload = self.post({"amount": "12", "merchant": {"name": "x"}, "card": 5})
+        self.assertEqual(status, 200, payload)
+        item = self.device_state()["inbox"][0]
+        self.assertEqual((item["merchant"], item["card"]), ("Apple Pay payment", "Apple Pay"))
 
     def test_the_wallet_source_is_not_a_simulated_switch(self):
         self.assertEqual(set(self.state()["connected"]), {"apple_pay", "octopus", "hsbc"})
@@ -126,8 +149,11 @@ class WidgetRoute(DeviceClient):
         return json.loads(payload)
 
     def test_before_a_budget(self):
-        self.assertEqual(self.widget(), {"ready": False, "left": 0, "leftText": "HK$0", "over": False,
-                                         "streak": 0, "shape": "square", "toReview": 0})
+        data = self.widget()
+        self.assertEqual({k: data[k] for k in ("ready", "left", "leftText", "over", "streak", "shape", "toReview")},
+                         {"ready": False, "left": 0, "leftText": "HK$0", "over": False,
+                          "streak": 0, "shape": "square", "toReview": 0})
+        self.assertEqual((data["funds"], data["payments"]), ([], []))
 
     def test_with_a_budget_and_a_payment_to_review(self):
         self.post({"amount": "12", "merchant": "Bakery"}, path="/api/shortcut/wallet")
@@ -148,6 +174,38 @@ class WidgetRoute(DeviceClient):
         self.assertEqual((data["left"], data["leftText"], data["over"]), (17000, "HK$170", False))
         self.assertEqual(data["toReview"], 1)
         self.assertIsInstance(data["streak"], int)
+        self.assertEqual(data["allowanceText"], "HK$170")
+        self.assertEqual((data["spentText"], data["spentRatio"]), ("HK$0", 0))
+        self.assertEqual(data["daysLeft"], self.device_state()["view"]["daysLeft"])
+        self.assertEqual([f["fund"] for f in data["funds"]],
+                         ["main", "snack", "fixed", "experience", "development", "savings"])
+        main = data["funds"][0]
+        self.assertEqual(set(main), {"fund", "name", "left", "leftText", "allocationText", "level"})
+        self.assertEqual(main["level"], 1000)
+
+    def test_today_payments_newest_first(self):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            for path, body in (("/api/settings", FUNDS_TEXT),
+                               ("/api/payments", {"amount": "42", "category": "main", "note": "Lunch", "requestId": "a" * 16}),
+                               ("/api/payments", {"amount": "8.5", "category": "snack", "note": "", "requestId": "b" * 16})):
+                data = json.dumps(body).encode("utf-8")
+                conn.putrequest("POST", path, skip_host=True, skip_accept_encoding=True)
+                conn.putheader("Host", f"127.0.0.1:{self.port}")
+                conn.putheader("X-SSUST-Device", DEVICE)
+                conn.putheader("Content-Type", "application/json")
+                conn.putheader("Content-Length", str(len(data)))
+                conn.endheaders(data)
+                response = conn.getresponse()
+                self.assertEqual(response.status, 200, response.read())
+                response.read()
+        finally:
+            conn.close()
+        data = self.widget()
+        self.assertEqual(data["payments"], [{"label": "Snacks", "amountText": "HK$8.50", "fund": "snack"},
+                                            {"label": "Lunch", "amountText": "HK$42", "fund": "main"}])
+        self.assertEqual(data["spentText"], "HK$50.50")
+        self.assertEqual(data["spentRatio"], 297)  # 5050 of 17000, per mille
 
     def test_bad_device_refused(self):
         self.assertEqual(self.get("/api/widget", device="bad")[0], 400)
@@ -191,6 +249,36 @@ class NativeWidget(unittest.TestCase):
         for word in ("@main", "WidgetBundle", "AppIntentConfiguration", "X-SSUST-Device", "/api/widget",
                      "https://ssust-api.onrender.com", "leftText", "toReview", "containerBackground"):
             self.assertIn(word, swift)
+
+    def test_the_app_shares_the_phone_code_through_an_app_group(self):
+        # No code to paste: the app writes the phone id into the shared App Group, the widget reads it.
+        group = "group.com.adamattar.ssust"
+        for parts in (("App", "App.entitlements"), ("SSUSTWidget", "SSUSTWidget.entitlements")):
+            with self.subTest(file=parts[-1]):
+                with open(ROOT.joinpath("ios", "App", *parts), "rb") as handle:
+                    self.assertEqual(plistlib.load(handle)["com.apple.security.application-groups"], [group])
+        project = self.read("ios", "App", "App.xcodeproj", "project.pbxproj")
+        self.assertEqual(project.count("CODE_SIGN_ENTITLEMENTS = App/App.entitlements;"), 2)
+        self.assertEqual(project.count("CODE_SIGN_ENTITLEMENTS = SSUSTWidget/SSUSTWidget.entitlements;"), 2)
+        self.assertIn("AppViewController.swift in Sources", project)
+        bridge = self.read("ios", "App", "App", "AppViewController.swift")
+        for word in ("CAPBridgeViewController", "capacitorDidLoad", '"ssustWidget"', group, "reloadAllTimelines"):
+            self.assertIn(word, bridge)
+        storyboard = self.read("ios", "App", "App", "Base.lproj", "Main.storyboard")
+        self.assertIn('customClass="AppViewController" customModule="App" customModuleProvider="target"', storyboard)
+        swift = self.read("ios", "App", "SSUSTWidget", "SSUSTWidget.swift")
+        self.assertIn(f'UserDefaults(suiteName: "{group}")', swift)
+        sync = self.read("frontend", "js", "widgetsync.js")
+        self.assertIn("messageHandlers", sync)
+        self.assertIn("ssustWidget", sync)
+        self.assertIn("syncWidget(", self.read("frontend", "js", "render.js"))
+
+    def test_richer_widget_sizes(self):
+        swift = self.read("ios", "App", "SSUSTWidget", "SSUSTWidget.swift")
+        for family in (".systemSmall", ".systemMedium", ".systemLarge", ".accessoryCircular", ".accessoryRectangular"):
+            self.assertIn(family, swift)
+        for field in ("funds", "payments", "spentRatio", "allowanceText"):
+            self.assertIn(field, swift)
 
     def test_codemagic_signs_the_widget_with_the_app(self):
         # Codemagic fetches profiles for every bundle id that starts with the app's id.
