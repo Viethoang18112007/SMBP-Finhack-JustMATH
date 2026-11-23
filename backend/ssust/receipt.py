@@ -5,7 +5,9 @@ amount and the student always checks it and confirms through the normal payment 
 
 Rules:
 - a line with a total word (TOTAL, AMOUNT DUE, GRAND TOTAL, 合計, 總數, 總計, 應付...) is a
-  candidate; the last candidate wins. TOTAL is also found when the camera misreads it
+  candidate; the last candidate wins. Receipts that print AMOUNT instead (AMT, AM0UNT, 金額,
+  Montant, Amount payable) are read the same way, but only when no TOTAL line is found, so an
+  "Amount" column header or an "Amount paid" line never beats a real total. TOTAL is also found when the camera misreads it
   (T0TAL, TOTA1, TOTAI, T0TA L). If a total word stands alone, an amount on one of the next two
   lines is used (OCR often splits the two columns).
 - lines with SUBTOTAL/小計 (misread too), CHANGE, CASH, TENDERED, TIP, a remaining Octopus value,
@@ -30,12 +32,14 @@ TOTAL_WORDS = ("GRAND TOTAL", "AMOUNT DUE", "TOTAL DUE", "TOTAL", "合計", "合
                "总计", "應付", "应付", "總額", "总额")
 IGNORE_WORDS = ("SUBTOTAL", "SUB TOTAL", "SUB-TOTAL", "小計", "小计", "CHANGE", "找續", "找赎", "找贖",
                 "CASH", "TENDERED", "TIP", "GRATUITY", "REMAINING", "BALANCE", "餘額", "余额", "剩餘", "現金")
+AMOUNT_WORDS = ("金額", "金额", "MONTANT", "PAYABLE")
 QUANTITY_WORDS = ("QTY", "QUANTITY", "ITEMS", "ITEM(S)", "數量", "件數")
 HEADER_WORDS = ("RECEIPT", "INVOICE", "收據", "收据", "發票", "WELCOME", "歡迎")
 
 # TOTAL as a camera reads it: O as 0 or Q, L as 1, I or |, A as 4, and a stray space.
 _TOTAL = re.compile(r"T ?[O0Q] ?T ?[A4] ?[L1I|]")
 _SUBTOTAL = re.compile(r"SUB ?-? ?T ?[O0Q] ?T")
+_AMOUNT_WORD = re.compile(r"\bAM ?[O0] ?UNT\b|\bAMT\b")
 
 _CLEAN = (
     re.compile(r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}"),  # dates
@@ -67,6 +71,11 @@ def _is_total(line):
     return (bool(_TOTAL.search(upper)) or _has(line, TOTAL_WORDS)) and not _ignored(line)
 
 
+def _is_amount(line):
+    """AMOUNT where other receipts print TOTAL (a weaker word: used only without a TOTAL line)."""
+    return (bool(_AMOUNT_WORD.search(line.upper())) or _has(line, AMOUNT_WORDS)) and not _ignored(line)
+
+
 def _amounts(line, priced_only=False):
     text = line
     for pattern in _CLEAN:
@@ -90,7 +99,8 @@ def amounts_in(line):
 def _merchant(lines):
     for line in lines:
         letters = sum(1 for ch in line if ch.isalpha())
-        if letters < 3 or _has(line, HEADER_WORDS) or _is_total(line) or _has(line, TOTAL_WORDS) or _ignored(line):
+        if (letters < 3 or _has(line, HEADER_WORDS) or _is_total(line) or _is_amount(line)
+                or _has(line, TOTAL_WORDS) or _ignored(line)):
             continue
         name = _CJK_GAP.sub("", " ".join(line.split()))
         if len(name) > MERCHANT_MAX:
@@ -120,17 +130,24 @@ def parse_receipt(text):
     if len(text) > MAX_TEXT:
         raise ValueError("The receipt text is too long.")
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    best = None
+    total = amount = None
     for i, line in enumerate(lines):
-        if not _is_total(line):
+        strong = _is_total(line)
+        if not strong and not _is_amount(line):
             continue
+        found = None
         amounts = amounts_in(line)
         if amounts:
-            best = (amounts[-1], line)
+            found = (amounts[-1], line)
         else:
             nxt = _next_amount(lines, i)
             if nxt:
-                best = (nxt[0], f"{line} {nxt[1]}")
+                found = (nxt[0], f"{line} {nxt[1]}")
+        if found and strong:
+            total = found
+        elif found:
+            amount = found
+    best = total or amount
     merchant = _merchant(lines)
     if best is not None:
         return {"found": True, "amount": best[0], "line": best[1], "merchant": merchant, "guess": False}

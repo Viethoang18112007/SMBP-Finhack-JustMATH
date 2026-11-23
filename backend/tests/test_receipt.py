@@ -103,6 +103,28 @@ class OcrNoise(Totals):
         self.assertFalse(self.check("Sample Shop\nTOTAL 48.00", 4800)["guess"])
 
 
+class AmountInsteadOfTotal(Totals):
+    """Some receipts print AMOUNT (or AMT, 金額, Montant) where others print TOTAL."""
+
+    def test_amount_line(self):
+        for line in ("AMOUNT 48.00", "Amount: HK$48.00", "AM0UNT 48.00", "Amt 48.00", "AMOUNT HKD\n48.00",
+                     "金額 $48.00", "Montant 48,00", "Amount payable 48.00"):
+            with self.subTest(line=line):
+                self.assertFalse(self.check(f"Sample Shop\nBurger 40.00\nFries 8.00\n{line}", 4800)["guess"])
+
+    def test_amount_column_header_is_not_the_total(self):
+        text = "Sample Shop\nItem     Qty   Amount\nBurger   1     40.00\nFries    1     8.00\nAmount   48.00"
+        self.check(text, 4800)
+
+    def test_a_total_line_wins_over_amount_lines(self):
+        self.check("Sample Shop\nTOTAL 48.00\nAmount paid 50.00", 4800)
+        self.check("Sample Shop\nAmount 40.00\nService 4.80\nTotal 44.80", 4480)
+
+    def test_amount_tendered_never_counts(self):
+        result = self.check("Sample Shop\nBurger 48.00\nAmount tendered 100.00", 4800)
+        self.assertTrue(result["guess"])
+
+
 class NothingFound(unittest.TestCase):
     def test_no_total_word_and_no_price(self):
         result = parse_receipt("Sample Shop\nThank you\nTable 12")
