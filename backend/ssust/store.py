@@ -27,7 +27,8 @@ LIVE_FILE = "ssust.db"
 DEMO_FILE = "ssust-demo.db"
 _RESERVED_META = frozenset({"book"})
 REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
-INBOX_SOURCES = ("apple_pay", "octopus", "hsbc")
+INBOX_SOURCES = ("apple_pay", "octopus", "hsbc")  # the simulated sources (Settings switches)
+WALLET_SOURCE = "wallet"  # real Apple Pay payments sent by an iOS Shortcuts automation
 INBOX_STATUSES = ("pending", "confirmed", "dismissed")
 
 
@@ -329,7 +330,7 @@ class Session:
         found = self._con.execute("SELECT id FROM inbox WHERE external_id = ?", (external,)).fetchone()
         if found:
             return found[0], False
-        if item.get("source") not in INBOX_SOURCES:
+        if item.get("source") not in (*INBOX_SOURCES, WALLET_SOURCE):
             raise ValueError("Unknown payment source.")
         amount = _cents(item.get("amount"), "Amount", minimum=1)
         texts = [item.get(key) for key in ("merchant", "card", "receivedAt")]

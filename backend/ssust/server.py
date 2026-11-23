@@ -293,6 +293,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(self.service.insights())
         elif path == "/api/feedback":
             self.send_json(self.service.feedback())
+        elif path == "/api/shortcut/today":
+            self.send_body(200, self.service.shortcut_today().encode("utf-8"), "text/plain; charset=utf-8")
         else:
             self.send_static(path)
 
@@ -311,6 +313,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/connected": self.post_connected,
             "/api/assistant/parse": self.post_parse,
             "/api/feedback": self.post_feedback,
+            "/api/shortcut/wallet": self.post_wallet,
         }
         route = routes.get(path)
         if route is None:
@@ -425,6 +428,12 @@ class Handler(BaseHTTPRequestHandler):
         if place is not None and not isinstance(place, dict):
             raise BadRequest("Unknown place.")
         self.send_json(self.service.add_payment(amount, category, data.get("note", ""), choice, request_id, place))
+
+    def post_wallet(self, data):
+        merchant, card = data.get("merchant"), data.get("card")
+        if not all(value is None or isinstance(value, str) for value in (merchant, card)):
+            raise BadRequest("Merchant and card are text.")
+        self.send_json(self.service.wallet_tap(data.get("amount"), merchant, card))
 
     def post_feedback(self, data):
         self.send_json(self.service.add_feedback(data.get("rating"), data.get("text", "")))

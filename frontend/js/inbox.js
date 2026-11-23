@@ -12,6 +12,8 @@ export const SOURCES = {
   apple_pay: { name: "Apple Pay", setting: "Apple Wallet" },
   octopus: { name: "Octopus", setting: "Octopus" },
   hsbc: { name: "HSBC", setting: "HSBC" },
+  // Real Apple Pay payments sent by an iOS Shortcuts automation (not a simulated switch).
+  wallet: { name: "Apple Pay", setting: "Apple Pay (Shortcuts)" },
 };
 export const SOURCE_ORDER = ["apple_pay", "octopus", "hsbc"];
 
@@ -82,7 +84,7 @@ export function reviewCard() {
   const items = (state.data && state.data.inbox) || [];
   if (!items.length || !state.view || !state.view.ready) return "";
   const rows = items.map((item) => `<li class="review-item" data-key="r-${item.id}">
-      <div class="review-top"><span class="review-source">${SOURCES[item.source].name}<span class="sim-tag">Simulated</span></span><strong class="num">${hk(item.amount)}</strong></div>
+      <div class="review-top"><span class="review-source">${SOURCES[item.source].name}${item.source === "wallet" ? "" : '<span class="sim-tag">Simulated</span>'}</span><strong class="num">${hk(item.amount)}</strong></div>
       <div class="review-merchant">${escapeHtml(item.merchant)} <span class="muted">· ${escapeHtml(item.card)}</span></div>
       ${item.suggestedReason ? `<p class="hint review-why">Fund picked: ${escapeHtml(item.suggestedReason)}</p>` : ""}
       ${item.typo ? `<p class="review-typo" role="alert"><strong>Typo?</strong> ${escapeHtml(item.typo.reason)} Check the amount before you confirm.</p>` : ""}

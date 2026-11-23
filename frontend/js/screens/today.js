@@ -110,6 +110,10 @@ export function todayScreen(view) {
       <div class="bar" aria-hidden="true"><span data-bar="today" data-ratio="${ratio}" data-tone="${tone}"></span></div>
       <div class="hero-foot"><span>Spent <strong class="num" data-count="spent" data-cents="${view.spentToday}">${hk(view.spentToday)}</strong> of ${hk(view.allowance)}</span><span>Tomorrow <strong class="num">${hk(view.tomorrow)}</strong></span></div>
     </section>
+    <button type="button" class="ghost scan-today" data-scan-today>
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M8 9h8M8 12h8M8 15h5"/></svg>
+      Scan a receipt
+    </button>
     ${rewardsStrip()}
     ${reviewCard()}
     ${cookedCard(state.data.cooked)}

@@ -1,5 +1,6 @@
 import { budgetFields } from "../budget.js";
 import { NATIVE } from "../config.js";
+import { shortcutsCard } from "./shortcuts.js";
 import { state } from "../store.js";
 import { connectedCard, tapButtons } from "../inbox.js";
 
@@ -55,7 +56,8 @@ export function settingsScreen(view) {
     <section class="card" aria-labelledby="about-title">
       <h2 class="title" id="about-title">Your data</h2>
       <p class="sub">Your budget and payments are kept on the SSUST server for this phone only.</p>
-    </section>`;
+    </section>
+    ${shortcutsCard()}`;
   }
   const phone = state.phoneView;
   const display = `<details class="card fold">

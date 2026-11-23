@@ -124,6 +124,17 @@ document.addEventListener("ssust:new-day", () => {
   }).catch(() => {});
 });
 
+// Back to the app (or the tab): fetch the numbers again, so a payment sent by a Shortcut or a
+// new day shows without a restart.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !state.data || state.saving || state.adding || state.sheet) return;
+  api("/api/state").then((data) => {
+    if (state.past) state.data = data;
+    else applyState(data);
+    render();
+  }).catch(() => {});
+});
+
 // First load failed: on the web the local server is not running; in the iOS app the hosted one is
 // out of reach.
 const WEB_UNREACHABLE = `<div class="card"><div class="explain">The server is not running. Start it with python run.py (or run.bat), then reload this page.</div></div>`;

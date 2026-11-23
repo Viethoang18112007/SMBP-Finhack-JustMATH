@@ -1,6 +1,6 @@
 // Draws the current screen, the Add sheet and the toast, then wires the buttons.
 
-import { applyNumbers, chooseCampus, commit, confirmInbox, dismissInbox, loadMap, logMealAt, onSave, scanReceipt, sendFeedback, setConnected, showToast, showWeek, simulateTap, switchMode, undoPayment } from "./actions.js";
+import { applyNumbers, chooseCampus, commit, confirmInbox, dismissInbox, loadMap, logMealAt, onSave, openAdd, scanReceipt, sendFeedback, setConnected, showToast, showWeek, simulateTap, switchMode, undoPayment } from "./actions.js";
 import { renderDeskSide, updateReviewPreview } from "./inbox.js";
 import { bindBudget } from "./budget.js";
 import { applyFrame, renderHome } from "./device.js";
@@ -185,6 +185,31 @@ function updatePreview() {
   preview.textContent = previewLine(state.view, parseAmount(input.value), state.draft.category);
 }
 
+// Settings > Apple Pay and widget: copy a value for the Shortcuts app.
+function copyText(btn) {
+  const value = btn.dataset.copy;
+  const done = () => {
+    showToast({ text: "Copied." }, 2500);
+    renderToast();
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(value).then(done, () => selectNext(btn));
+  } else {
+    selectNext(btn);
+  }
+}
+
+// No clipboard access: select the value so it can be copied by hand.
+function selectNext(btn) {
+  const code = btn.previousElementSibling;
+  if (!code) return;
+  const range = document.createRange();
+  range.selectNodeContents(code);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 function bind() {
   document.getElementById("back-week")?.addEventListener("click", () => go("week"));
   document.querySelectorAll("[data-screen-go]").forEach((btn) => btn.addEventListener("click", () => go(btn.dataset.screenGo)));
@@ -230,6 +255,12 @@ function bind() {
   }));
   document.querySelectorAll("[data-review-dismiss]").forEach((btn) => btn.addEventListener("click", () => dismissInbox(Number(btn.dataset.reviewDismiss))));
   document.getElementById("scan-btn")?.addEventListener("click", () => document.getElementById("scan-file")?.click());
+  // Today: open Add payment and the photo picker at once (camera or photos), in the same tap.
+  document.querySelector("[data-scan-today]")?.addEventListener("click", () => {
+    openAdd();
+    document.getElementById("scan-file")?.click();
+  });
+  document.querySelectorAll("[data-copy]").forEach((btn) => btn.addEventListener("click", () => copyText(btn)));
   document.getElementById("scan-file")?.addEventListener("change", (event) => scanReceipt(event.target.files && event.target.files[0]));
   document.getElementById("amount-slider")?.addEventListener("input", (event) => setAmount(Number(event.target.value)));
   document.querySelectorAll("[data-quick]").forEach((btn) => btn.addEventListener("click", () => setAmount(Number(btn.dataset.quick))));

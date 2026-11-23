@@ -9,12 +9,13 @@ and keeps its own database file. Errors the user can fix raise ServiceError.
 
 import json
 import re
+import uuid
 from datetime import datetime, timezone
 
 from . import assistant, cooked, fit, money, places, prices, projection, ranges, receipt, rewards
 from .dates import FixedClock, monday_of, week_dates
-from .store import INBOX_SOURCES, REQUEST_ID
-from .validate import MAX_CENTS, clean_note
+from .store import INBOX_SOURCES, REQUEST_ID, WALLET_SOURCE
+from .validate import MAX_CENTS, clean_note, parse_amount
 
 SCENARIOS = ("sample", "empty", "over", "cooked")
 CHOICES = ("snack", money.FLEX, "savings")
@@ -81,6 +82,28 @@ def _feedback_text(text):
     if len(cleaned) > FEEDBACK_CHARS:
         raise ServiceError(f"Keep it under {FEEDBACK_CHARS} characters.")
     return cleaned
+
+
+def wallet_amount(raw):
+    """Integer cents from what an iOS Shortcut sends for a Wallet transaction, or None.
+
+    Text like "HK$38.00", "$38.50", "38.00 HKD" or "HK$ 1,234.50", or a JSON number (38.5).
+    A number is read through its shortest decimal text, never as a float sum.
+    """
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        text = str(raw)
+    elif isinstance(raw, float):
+        text = repr(raw)
+        if "e" in text.lower() or "n" in text.lower():  # exponent, nan, inf
+            return None
+    elif isinstance(raw, str):
+        text = raw.replace(" ", " ").upper().replace("HKD", "").replace("HK$", "").replace("$", "")
+        text = text.replace(" ", "")
+    else:
+        return None
+    return parse_amount(text)
 
 
 def _campus(s):
@@ -377,6 +400,39 @@ class Service:
                                             "merchant": merchant, "card": card, "receivedAt": stamp})
             item = s.get_inbox(item_id)
         return {"item": item, "created": created, "state": self.get_state()}
+
+    def wallet_tap(self, amount, merchant=None, card=None):
+        """A real Apple Pay payment from an iOS Shortcuts automation ("When I tap any card in
+        Wallet"). It waits in To review like the others; nothing is spent until it is confirmed.
+        Every run is a new item (the Shortcut has no id of its own)."""
+        cents = wallet_amount(amount)
+        if cents is None or cents > MAX_CENTS:
+            raise ServiceError("Enter an amount greater than zero.")
+        try:
+            merchant = clean_note(merchant) or "Apple Pay payment"
+            card = clean_note(card) or "Apple Pay"
+        except ValueError:
+            raise ServiceError("Merchant and card are text.") from None
+        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with self._books[self.mode()].session(write=True) as s:
+            s.add_inbox({"externalId": f"wallet-{uuid.uuid4().hex}", "source": WALLET_SOURCE, "amount": cents,
+                         "merchant": merchant, "card": card, "receivedAt": stamp})
+        return {"ok": True, "amount": cents, "merchant": merchant}
+
+    def shortcut_today(self):
+        """One line for a Shortcuts widget: what is left today, the streak and what waits for review."""
+        state = self.get_state()
+        view = state["view"]
+        if not view["ready"]:
+            return "SSUST: set your weekly budget in the app."
+        left = view["todayRemaining"]
+        parts = [f"SSUST: {money.hk(left)} left today" if left >= 0 else f"SSUST: {money.hk(-left)} over today"]
+        streak = state["rewards"]["streak"]["days"] if state["rewards"] else 0
+        if streak:
+            parts.append(f"{streak} day streak")
+        if state["inbox"]:
+            parts.append(f"{len(state['inbox'])} to review")
+        return " · ".join(parts)
 
     def _pending(self, item_id):
         if type(item_id) is not int or not 0 < item_id < 2 ** 63:

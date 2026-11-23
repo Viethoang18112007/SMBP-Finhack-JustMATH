@@ -91,7 +91,13 @@ Everyone who opens the public address shares the same data, and the free plan wi
 
 The same `frontend/` folder can also run inside an iOS app made with Capacitor 8 (Swift Package Manager). This is only for the iOS build: the web app and the backend above still need no npm and no build step. `package.json` and `capacitor.config.json` (web folder `frontend`) describe the shell, `ios/` is the generated Xcode project, and `codemagic.yaml` builds it on a cloud Mac and sends it to TestFlight. Inside the app there is no simulated phone frame or home screen, and API calls go to the hosted server set in `frontend/js/config.js` (`NATIVE_API_BASE`, the Render service `ssust-api` from `render.yaml`). On the web that base is empty, so nothing changes. The server answers that one app origin (`capacitor://localhost`) with CORS headers on `/api/` only (GET and POST, no credentials); every other origin gets none, and the Host check, body limit and validation stay the same. After changing `frontend/`, run `npx cap sync ios` (Node 22 or later) to copy it into the iOS project.
 
-The app has **no demo**: no Live/Demo switch, no sample weeks, tour, simulated taps or notifications. Each phone sends a random id of its own (`X-SSUST-Device`, kept in the app's storage) and gets its own live data on the server (`data/devices/<id>/`, at most 200 phones per server). Requests without that header (the web app) use the shared data exactly as before. The header leaves room for the status bar and the home indicator, and a double tap on an empty area no longer zooms. On Render's free plan the disk is wiped when the service restarts or sleeps, so app data does not last there; a paid disk (set `SSUST_DATA` to it) would keep it.
+The app has **no demo**: no Live/Demo switch, no sample weeks, tour, simulated taps or notifications. Each phone sends a random id of its own (`X-SSUST-Device`, kept in the app's storage) and gets its own live data on the server (`data/devices/<id>/`, at most 200 phones per server). Requests without that header (the web app) use the shared data exactly as before. The header leaves room for the status bar and the home indicator, and a double tap on an empty area no longer zooms. **Camera:** Today has **Scan a receipt** (camera or photos, then the same receipt reading as Add payment); the app declares the camera and photo permissions iOS asks for.
+
+**Real Apple Pay payments (Shortcuts):** Settings > **Apple Pay and widget** gives the URL and this phone's header to paste into an iOS Shortcuts automation ("When I tap any card in Wallet" > Get Contents of URL, POST, JSON `amount`, `merchant`, `card`). Each Apple Pay payment then waits in Today under **To review** (marked Apple Pay, not Simulated); nothing is spent until you confirm it. The amount is read from text like "HK$38.00" or a JSON number, always into integer cents.
+
+**Widget (Shortcuts):** the same page explains a shortcut that reads `GET /api/shortcut/today` (one line such as "SSUST: HK$82.29 left today · 3 day streak · 1 to review") and shows it; iOS can put that shortcut on the home screen as a widget, and a tap shows the line. A native WidgetKit widget is not built: it needs a Swift extension target, an App Group and more signing profiles that cannot be built or checked here without a Mac.
+
+On Render's free plan the disk is wiped when the service restarts or sleeps, so app data does not last there; a paid disk (set `SSUST_DATA` to it) would keep it.
 
 ## Rewards and feedback
 
@@ -178,7 +184,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (669 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (681 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 
@@ -383,6 +389,8 @@ All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: 
 | `GET /api/places` | `?kind=food\|shop&radius=0.5\|1\|3\|5\|10` (default food, 3 km) | Places around the saved campus. Food comes with `budget` (`remaining`, `mealsLeft`, `perMeal`, `bands`, `verifiedRecords`) and, per place, `status` (`fits`, `over`, `estimate`, `unlikely`, `unknown`, `verified`), `label`, `why`, `verified` (dish, price, source, date, or null), `range`, and `fit` (the estimated range compared with food left: an estimate, never a verified fit) |
 | `GET /api/insights` | | This week's pace warnings and breakdown (the same as `insights` in the state) |
 | `GET /api/feedback` | | The latest feedback (`{"feedback": [{"id", "rating", "text", "createdAt"}]}`), newest first |
+| `POST /api/shortcut/wallet` | `{"amount": "HK$38.00" or 38, "merchant"?: "...", "card"?: "..."}` (iOS Shortcuts, with `X-SSUST-Device`) | Add a real Apple Pay payment to To review (source `wallet`). Every call is a new item |
+| `GET /api/shortcut/today` | (with `X-SSUST-Device`) | Plain text, one line: left today, the streak, how many wait for review |
 | `POST /api/feedback` | `{"rating": 1 to 5, "text"?: "<at most 500 characters>"}` | Save feedback about the app; answers with the latest feedback |
 | `POST /api/assistant/parse` | `{"text": "$50 KFC dinner"}` | `{"ok", "amount" (cents), "category", "note", "reason", "confident", "typo", "chain"}` or `{"ok": false, "error"}`. Reads only |
 | `POST /api/receipt/parse` | `{"text": "<OCR text, at most 3500 characters>"}` | `{"found", "amount" (cents or null), "line", "merchant", "entry"}` where `entry` is the parse_entry result for the merchant (fund, reason, typo). Reads only: nothing is saved |
