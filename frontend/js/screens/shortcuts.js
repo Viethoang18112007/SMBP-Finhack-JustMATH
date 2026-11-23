@@ -9,6 +9,7 @@
 import { API_BASE, deviceId } from "../config.js";
 import { escapeHtml } from "../format.js";
 import { state } from "../store.js";
+import { widgetLinked } from "../widgetsync.js";
 
 function copyRow(label, value) {
   return `<div class="copy-row"><span class="label">${escapeHtml(label)}</span>`
@@ -25,10 +26,10 @@ function lastMessage() {
   const time = Number.isNaN(when.getTime())
     ? ""
     : when.toLocaleString("en-GB", { timeZone: "Asia/Hong_Kong", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  const what = last.ok
-    ? `Received ${escapeHtml(last.detail)}. It waits in Today under To review.`
-    : `Refused: ${escapeHtml(last.detail)} It sent "${escapeHtml(last.amount)}".`;
-  return `<p class="notice ${last.ok ? "" : "warn"}" role="status">Last Apple Pay message, ${escapeHtml(time)}: ${what}</p>`;
+  let what = `Refused: ${escapeHtml(last.detail)} It sent "${escapeHtml(last.amount)}".`;
+  if (last.ok) what = `Received ${escapeHtml(last.detail)}. It waits in Today under To review.`;
+  else if (last.linkOk) what = escapeHtml(last.detail);
+  return `<p class="notice ${last.ok || last.linkOk ? "" : "warn"}" role="status">Last Apple Pay message, ${escapeHtml(time)}: ${what}</p>`;
 }
 
 export function shortcutsCard() {
@@ -49,7 +50,8 @@ export function shortcutsCard() {
           <li>Add the action <strong>Get Contents of URL</strong> (Obtenir le contenu de l'URL) and paste the URL.</li>
           <li>Tap the arrow: Method <strong>POST</strong>, add the header (name and value above), Request Body <strong>JSON</strong>.</li>
           <li>Add three text fields: <code>amount</code> = Shortcut Input &gt; <strong>Amount</strong> (Montant), <code>merchant</code> = <strong>Merchant</strong> (Commerçant), <code>card</code> = <strong>Card or Pass</strong>.</li>
-          <li>Pay with Apple Pay, then open SSUST: the line above says what arrived.</li>
+          <li>Test without paying: in the automation, tap <strong>▶</strong> (bottom right). Open SSUST: the line above says "the link works".</li>
+          <li>Then one real Apple Pay payment (even HK$1): the line above says what arrived.</li>
         </ol>
         <p class="hint">Octopus in Wallet: transit taps may not start the automation. Keep the header value private.</p>
       </details>
@@ -57,6 +59,9 @@ export function shortcutsCard() {
     <section class="card" aria-labelledby="widget-title">
       <h2 class="title" id="widget-title">SSUST widget</h2>
       <p class="sub">Hold an empty spot on the home screen, Edit, Add Widget, then SSUST. Small, medium, large and lock screen sizes. It updates when you use the app and about every 30 minutes.</p>
+      ${widgetLinked()
+        ? `<p class="notice" role="status">Widget linked to this phone: nothing to paste.</p>`
+        : `<p class="notice warn" role="status">This app version cannot reach the widget yet: update SSUST from TestFlight.</p>`}
       <details class="fold">
         <summary><span class="label">iOS 16 or older</span></summary>
         ${copyRow("URL", today)}

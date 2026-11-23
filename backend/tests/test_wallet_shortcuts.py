@@ -107,6 +107,17 @@ class WalletRoute(DeviceClient):
         self.assertEqual(last["detail"], "HK$38 from Bakery")
         self.assertRegex(last["at"], r"^\d{4}-\d\d-\d\dT")
 
+    def test_a_run_by_hand_checks_the_link_without_paying(self):
+        # Run from the Shortcuts editor, the automation has no payment, so no amount: the link works.
+        for body in ({}, {"amount": ""}, {"amount": "  "}, {"amount": None, "merchant": ""}):
+            with self.subTest(body=body):
+                self.assertEqual(self.post(body)[0], 400)
+                last = self.device_state()["walletLast"]
+                self.assertFalse(last["ok"])
+                self.assertTrue(last["linkOk"])
+                self.assertIn("the link works", last["detail"])
+        self.assertEqual(self.device_state()["inbox"], [])
+
     def test_a_merchant_that_is_not_text_is_ignored(self):
         status, _, payload = self.post({"amount": "12", "merchant": {"name": "x"}, "card": 5})
         self.assertEqual(status, 200, payload)
@@ -272,6 +283,15 @@ class NativeWidget(unittest.TestCase):
         self.assertIn("messageHandlers", sync)
         self.assertIn("ssustWidget", sync)
         self.assertIn("syncWidget(", self.read("frontend", "js", "render.js"))
+
+    def test_the_scene_uses_the_view_controller_that_talks_to_the_widget(self):
+        # The window is made in SceneDelegate (not from Main.storyboard): it must use our subclass,
+        # or the "ssustWidget" channel never exists and the widget never gets the phone id.
+        scene = self.read("ios", "App", "App", "SceneDelegate.swift")
+        self.assertIn("window?.rootViewController = AppViewController()", scene)
+        self.assertNotIn("CAPBridgeViewController()", scene)
+        self.assertIn("widgetLinked", self.read("frontend", "js", "widgetsync.js"))
+        self.assertIn("widgetLinked()", self.read("frontend", "js", "screens", "shortcuts.js"))
 
     def test_richer_widget_sizes(self):
         swift = self.read("ios", "App", "SSUSTWidget", "SSUSTWidget.swift")

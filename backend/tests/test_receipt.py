@@ -71,9 +71,41 @@ class Totals(unittest.TestCase):
         self.check("Sample Tea\nTotal $12.5", 1250)
 
 
+class OcrNoise(Totals):
+    """What a phone camera really gives: misread letters, split decimals, columns on two lines."""
+
+    def test_total_read_with_a_zero_or_a_one(self):
+        for word in ("T0TAL", "TOTA1", "TOTAI", "T0TA L", "Tota1"):
+            with self.subTest(word=word):
+                self.assertFalse(self.check(f"Sample Shop\nBurger 40.00\n{word} 48.00", 4800)["guess"])
+
+    def test_decimal_comma_or_space(self):
+        for amount in ("48,00", "48. 00", "48 .00", "HK$ 48 . 00"):
+            with self.subTest(amount=amount):
+                self.check(f"Sample Shop\nTOTAL {amount}", 4800)
+
+    def test_amount_two_lines_after_the_total_word(self):
+        self.check("Sample Shop\nTOTAL\nHKD\n48.00\nThank you", 4800)
+
+    def test_misread_subtotal_never_wins(self):
+        self.check("Sample Shop\nSUBT0TAL 40.00\nService 4.00\nT0TAL 44.00", 4400)
+
+    def test_total_quantity_is_not_a_total(self):
+        result = self.check("Sample Shop\nBurger 48.00\nTotal Qty 3", 4800)
+        self.assertTrue(result["guess"])
+
+    def test_best_guess_is_the_largest_price(self):
+        result = self.check("Sample Shop\nItem 12.00\nItem 30.00\nVISA 42.00\nCash 50.00\nChange 8.00", 4200)
+        self.assertTrue(result["guess"])
+        self.assertEqual(result["line"], "VISA 42.00")
+
+    def test_a_real_total_is_not_a_guess(self):
+        self.assertFalse(self.check("Sample Shop\nTOTAL 48.00", 4800)["guess"])
+
+
 class NothingFound(unittest.TestCase):
-    def test_no_total_word(self):
-        result = parse_receipt("Sample Shop\nItem 12.00\nItem 30.00")
+    def test_no_total_word_and_no_price(self):
+        result = parse_receipt("Sample Shop\nThank you\nTable 12")
         self.assertFalse(result["found"])
         self.assertIsNone(result["amount"])
         self.assertEqual(result["merchant"], "Sample Shop")

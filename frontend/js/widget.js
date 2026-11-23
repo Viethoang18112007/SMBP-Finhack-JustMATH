@@ -74,7 +74,7 @@ function resultHtml() {
   const entry = w.entry;
   if (!entry) return "";
   const receipt = w.receipt
-    ? `<p class="qa-line">Read from the receipt: "${escapeHtml(w.receipt.line || "")}"${w.receipt.merchant ? ` · ${escapeHtml(w.receipt.merchant)}` : ""}</p>`
+    ? `<p class="qa-line">${w.receipt.guess ? "Best guess (largest price), check it" : "Read from the receipt"}: "${escapeHtml(w.receipt.line || "")}"${w.receipt.merchant ? ` · ${escapeHtml(w.receipt.merchant)}` : ""}</p>`
     : "";
   const sure = entry.confident ? "" : `<span class="qa-unsure">Not sure: check the fund</span>`;
   const action = w.receipt
@@ -303,7 +303,7 @@ async function readImage(file, sample = null) {
     const result = await api("/api/receipt/parse", { text: trimText(text) });
     if (result.found && result.entry) {
       w.entry = result.entry;
-      w.receipt = { merchant: result.merchant, line: result.line, amount: result.amount };
+      w.receipt = { merchant: result.merchant, line: result.line, amount: result.amount, guess: Boolean(result.guess) };
     } else {
       w.error = "Could not find a total on this receipt. Try another photo, or type it in.";
     }
@@ -352,7 +352,7 @@ async function addEntry() {
 function checkEntry() {
   const entry = w.entry;
   if (!entry || entry.typo) return;
-  const scan = { status: "found", line: w.receipt.line, merchant: w.receipt.merchant, reason: entry.reason };
+  const scan = { status: "found", guess: Boolean(w.receipt.guess), line: w.receipt.line, merchant: w.receipt.merchant, reason: entry.reason };
   // The zoom starts from the button just tapped: read its place before the camera closes.
   const from = el("cam-screen")?.querySelector("[data-w-check]")?.getBoundingClientRect();
   reset();

@@ -1,15 +1,20 @@
 """Find the total in the text read from a receipt. Pure functions, integer cents, no I/O.
 
-The text comes from OCR in the browser, so it can be wrong: the app only pre-fills the
+The text comes from OCR on a phone photo, so it can be wrong: the app only pre-fills the
 amount and the student always checks it and confirms through the normal payment flow.
 
 Rules:
 - a line with a total word (TOTAL, AMOUNT DUE, GRAND TOTAL, 合計, 總數, 總計, 應付...) is a
-  candidate; the last candidate wins. If a total word stands alone, a next line that holds
-  only an amount is used.
-- lines with SUBTOTAL/小計, CHANGE, CASH, TENDERED, TIP, a remaining Octopus value... never count.
+  candidate; the last candidate wins. TOTAL is also found when the camera misreads it
+  (T0TAL, TOTA1, TOTAI, T0TA L). If a total word stands alone, an amount on one of the next two
+  lines is used (OCR often splits the two columns).
+- lines with SUBTOTAL/小計 (misread too), CHANGE, CASH, TENDERED, TIP, a remaining Octopus value,
+  or a total quantity (QTY, ITEMS) never count.
 - dates, times, percents, phone numbers and card numbers are removed before reading amounts;
-  on a total line the last amount is the total.
+  a decimal misread as "48,00" or "48 . 00" is read as 48.00; on a total line the last amount
+  is the total.
+- with no total line, the largest price on the receipt (an amount with two decimals, not on an
+  ignored line) is returned as a best guess, marked "guess": the app asks to check it.
 - HK$, HKD, $ and plain numbers are accepted. The merchant guess is the first line with a few
   letters that is not a receipt header.
 """
@@ -25,7 +30,12 @@ TOTAL_WORDS = ("GRAND TOTAL", "AMOUNT DUE", "TOTAL DUE", "TOTAL", "合計", "合
                "总计", "應付", "应付", "總額", "总额")
 IGNORE_WORDS = ("SUBTOTAL", "SUB TOTAL", "SUB-TOTAL", "小計", "小计", "CHANGE", "找續", "找赎", "找贖",
                 "CASH", "TENDERED", "TIP", "GRATUITY", "REMAINING", "BALANCE", "餘額", "余额", "剩餘", "現金")
+QUANTITY_WORDS = ("QTY", "QUANTITY", "ITEMS", "ITEM(S)", "數量", "件數")
 HEADER_WORDS = ("RECEIPT", "INVOICE", "收據", "收据", "發票", "WELCOME", "歡迎")
+
+# TOTAL as a camera reads it: O as 0 or Q, L as 1, I or |, A as 4, and a stray space.
+_TOTAL = re.compile(r"T ?[O0Q] ?T ?[A4] ?[L1I|]")
+_SUBTOTAL = re.compile(r"SUB ?-? ?T ?[O0Q] ?T")
 
 _CLEAN = (
     re.compile(r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}"),  # dates
@@ -35,9 +45,11 @@ _CLEAN = (
     re.compile(r"\b\d{4}[ -]\d{4}\b"),  # Hong Kong phone numbers
     re.compile(r"\d{7,}"),  # long digit runs: card, phone, receipt numbers
 )
+_DECIMAL = re.compile(r"(\d)(?:\s*\.\s*|,)(\d{2})(?!\d)")  # 48,00 / 48 . 00 -> 48.00
 _AMOUNT = re.compile(r"(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?(?![\d,]|\.\d)")
 _CJK_GAP = re.compile("(?<=[㐀-鿿])\\s+(?=[㐀-鿿])")  # OCR puts spaces between Chinese characters
 _ONLY_AMOUNT = re.compile(r"^\s*(?:HK\$|HKD|\$)?\s*[\d,]+(?:\.\d{1,2})?\s*$", re.IGNORECASE)
+_ONLY_CURRENCY = re.compile(r"^\s*(?:HK\$|HKD|HK|\$|港幣|港元)\s*:?\s*$", re.IGNORECASE)
 
 
 def _has(line, words):
@@ -45,23 +57,40 @@ def _has(line, words):
     return any(word in upper for word in words)
 
 
-def amounts_in(line):
-    """Amounts on one line, in cents, after dates, times, phones and card numbers are removed."""
+def _ignored(line):
+    upper = line.upper()
+    return _has(line, IGNORE_WORDS) or _has(line, QUANTITY_WORDS) or bool(_SUBTOTAL.search(upper))
+
+
+def _is_total(line):
+    upper = line.upper()
+    return (bool(_TOTAL.search(upper)) or _has(line, TOTAL_WORDS)) and not _ignored(line)
+
+
+def _amounts(line, priced_only=False):
     text = line
     for pattern in _CLEAN:
         text = pattern.sub(" ", text)
+    text = _DECIMAL.sub(r"\1.\2", text)
     found = []
     for whole, decimals in _AMOUNT.findall(text):
+        if priced_only and len(decimals) != 2:
+            continue
         cents = int(whole.replace(",", "")) * 100 + int((decimals or "0").ljust(2, "0"))
         if 0 < cents <= MAX_CENTS:
             found.append(cents)
     return found
 
 
+def amounts_in(line):
+    """Amounts on one line, in cents, after dates, times, phones and card numbers are removed."""
+    return _amounts(line)
+
+
 def _merchant(lines):
     for line in lines:
         letters = sum(1 for ch in line if ch.isalpha())
-        if letters < 3 or _has(line, HEADER_WORDS) or _has(line, TOTAL_WORDS) or _has(line, IGNORE_WORDS):
+        if letters < 3 or _has(line, HEADER_WORDS) or _is_total(line) or _has(line, TOTAL_WORDS) or _ignored(line):
             continue
         name = _CJK_GAP.sub("", " ".join(line.split()))
         if len(name) > MERCHANT_MAX:
@@ -71,8 +100,21 @@ def _merchant(lines):
     return None
 
 
+def _next_amount(lines, i):
+    """The amount on one of the two lines after a lone total word, skipping a lone "HKD"."""
+    for j in range(i + 1, min(i + 3, len(lines))):
+        line = _DECIMAL.sub(r"\1.\2", lines[j])
+        if _ONLY_AMOUNT.match(line):
+            found = amounts_in(line)
+            return (found[-1], lines[j]) if found else None
+        if not _ONLY_CURRENCY.match(line):
+            return None
+    return None
+
+
 def parse_receipt(text):
-    """{"found", "amount" (cents or None), "line" (the line used or None), "merchant" (or None)}."""
+    """{"found", "amount" (cents or None), "line" (the line used or None), "merchant" (or None),
+    "guess" (True when no total line was found and the largest price is offered instead)}."""
     if not isinstance(text, str):
         raise ValueError("Send the receipt text.")
     if len(text) > MAX_TEXT:
@@ -80,16 +122,25 @@ def parse_receipt(text):
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     best = None
     for i, line in enumerate(lines):
-        if not _has(line, TOTAL_WORDS) or _has(line, IGNORE_WORDS):
+        if not _is_total(line):
             continue
         amounts = amounts_in(line)
         if amounts:
             best = (amounts[-1], line)
-        elif i + 1 < len(lines) and _ONLY_AMOUNT.match(lines[i + 1]):
-            nxt = amounts_in(lines[i + 1])
+        else:
+            nxt = _next_amount(lines, i)
             if nxt:
-                best = (nxt[-1], f"{line} {lines[i + 1]}")
+                best = (nxt[0], f"{line} {nxt[1]}")
     merchant = _merchant(lines)
-    if best is None:
-        return {"found": False, "amount": None, "line": None, "merchant": merchant}
-    return {"found": True, "amount": best[0], "line": best[1], "merchant": merchant}
+    if best is not None:
+        return {"found": True, "amount": best[0], "line": best[1], "merchant": merchant, "guess": False}
+    guess = None
+    for line in lines:
+        if _ignored(line):
+            continue
+        for cents in _amounts(line, priced_only=True):
+            if guess is None or cents >= guess[0]:
+                guess = (cents, line)
+    if guess is None:
+        return {"found": False, "amount": None, "line": None, "merchant": merchant, "guess": False}
+    return {"found": True, "amount": guess[0], "line": guess[1], "merchant": merchant, "guess": True}

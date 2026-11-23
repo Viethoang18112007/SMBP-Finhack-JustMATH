@@ -7,6 +7,15 @@ import { state } from "./store.js";
 
 let last = "";
 
+// True when the native channel to the widget exists (an app build with AppViewController).
+export function widgetLinked() {
+  try {
+    return Boolean(NATIVE && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ssustWidget);
+  } catch (error) {
+    return false;
+  }
+}
+
 export function syncWidget() {
   if (!NATIVE) return;
   let channel = null;

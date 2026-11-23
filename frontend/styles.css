@@ -1260,3 +1260,7 @@ html.native #tour-btn, html.native .mode-badge, html.native #tour-offer { displa
 .guide-title { font-size: 15px; margin-top: var(--s4); }
 .guide { margin: var(--s2) 0 0; padding-left: 20px; font-size: 13px; color: var(--ink-2); display: grid; gap: 6px; }
 .guide code { font-size: 12px; }
+
+/* Scan receipt: the text the reader saw when no total was found. */
+.ocr-seen { margin-top: 6px; }
+.ocr-text { white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow: auto; font-size: 12px; margin: 6px 0 0; padding: 8px; border-radius: 8px; background: var(--surface-2, rgba(0, 0, 0, 0.04)); }

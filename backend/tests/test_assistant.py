@@ -96,7 +96,7 @@ class ReceiptPipeline(unittest.TestCase):
         self.assertEqual(r["entry"]["typo"]["suggestion"], 4450)
 
     def test_no_total_means_no_entry(self):
-        r = self.scan("SAMPLE RECEIPT\nSample Shop\nItem 12.00")
+        r = self.scan("SAMPLE RECEIPT\nSample Shop\nThank you")
         self.assertFalse(r["found"])
         self.assertIsNone(r["entry"])
 

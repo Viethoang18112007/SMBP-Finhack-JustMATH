@@ -31,17 +31,22 @@ export function addSheetHtml() {
   let scanText = "";
   if (reading) scanText = scan.percent ? `${scan.words}: ${scan.percent}%` : `${scan.words}…`;
   else if (found) {
-    scanText = `Read from receipt: check it. Line used: "${scan.line}"`;
+    scanText = scan.guess
+      ? `No TOTAL line found: best guess is the largest price, check it. Line used: "${scan.line}"`
+      : `Read from receipt: check it. Line used: "${scan.line}"`;
     if (scan.reason) scanText += `. Fund: ${scan.reason}`;
     if (scan.typo) scanText += `. Typo? ${scan.typo}`;
   }
   else if (scan && scan.status === "none") scanText = "Could not read a total, type it in.";
   else if (scan && scan.status === "error") scanText = "Could not read this image. Type the amount in.";
+  const seen = scan && scan.status === "none"
+    ? `<details class="more ocr-seen"><summary>What the reader saw</summary><pre class="ocr-text">${escapeHtml(scan.text || "(no text at all: try more light, closer, flat)")}</pre></details>`
+    : "";
   const scanRow = `<div class="scan-row">
       <button type="button" class="ghost small scan-btn" id="scan-btn"${reading ? ' disabled aria-busy="true"' : ""}>${reading ? '<span class="spinner" aria-hidden="true"></span>Reading…' : "Scan receipt"}</button>
       <input type="file" id="scan-file" accept="image/*" hidden>
       <span class="scan-status${found ? " is-found" : ""}" id="scan-status" role="status" aria-live="polite">${escapeHtml(scanText)}</span>
-    </div>`;
+    </div>${seen}`;
   const busy = state.saving ? ' disabled aria-busy="true"' : "";
   return `<div class="panel add-panel" role="dialog" aria-modal="true" aria-labelledby="add-title">
       <span class="grip" aria-hidden="true"></span>

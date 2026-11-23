@@ -629,15 +629,18 @@ class ReceiptRoute(ApiTest):
         data = self.call("POST", "/api/receipt/parse", {"text": "Sample Noodle Bar\nTOTAL HK$48.50"})
         entry = data.pop("entry")
         self.assertEqual(data, {"found": True, "amount": 4850, "line": "TOTAL HK$48.50",
-                                "merchant": "Sample Noodle Bar"})
+                                "merchant": "Sample Noodle Bar", "guess": False})
         self.assertEqual((entry["amount"], entry["category"], entry["note"]), (4850, "main", "Sample Noodle Bar"))
 
     def test_text_only_sample_reader_is_gone(self):
         self.call("POST", "/api/assistant/receipt", {"sample": "mcd"}, status=404)
 
     def test_nothing_found(self):
-        data = self.call("POST", "/api/receipt/parse", {"text": "Sample Shop\nItem 12.00"})
+        data = self.call("POST", "/api/receipt/parse", {"text": "Sample Shop\nThank you"})
         self.assertFalse(data["found"])
+        # A price but no TOTAL line: the largest price, marked as a guess.
+        data = self.call("POST", "/api/receipt/parse", {"text": "Sample Shop\nItem 12.00"})
+        self.assertEqual((data["found"], data["guess"], data["amount"]), (True, True, 1200))
 
     def test_parse_never_saves_a_payment(self):
         self.set_funds()

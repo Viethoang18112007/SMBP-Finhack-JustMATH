@@ -88,6 +88,7 @@ export async function scanReceipt(file) {
   state.scan = { status: "reading", percent: 0, words: "Loading the offline reader" };
   render();
   let result = null;
+  let read = "";
   try {
     const text = await readReceipt(file, (percent, words) => {
       if (!state.scan || state.scan.status !== "reading") return;
@@ -96,7 +97,8 @@ export async function scanReceipt(file) {
       const el = document.getElementById("scan-status");
       if (el) el.textContent = percent ? `${words}: ${percent}%` : `${words}…`;
     });
-    result = await api("/api/receipt/parse", { text: trimText(text) });
+    read = trimText(text);
+    result = await api("/api/receipt/parse", { text: read });
   } catch (err) {
     if (!state.adding) return;
     keepDraft();
@@ -112,10 +114,11 @@ export async function scanReceipt(file) {
     const entry = result.entry;
     if (entry) state.draft.category = entry.category;
     state.error = "";
-    state.scan = { status: "found", line: result.line, merchant: result.merchant, reason: entry ? entry.reason : "",
+    state.scan = { status: "found", guess: Boolean(result.guess), line: result.line, merchant: result.merchant, reason: entry ? entry.reason : "",
       typo: entry && entry.typo ? entry.typo.reason : "" };
   } else {
-    state.scan = { status: "none" };
+    // What the reader saw, so a failed photo can be checked (and sent to us) instead of guessed at.
+    state.scan = { status: "none", text: read.slice(0, 800) };
   }
   render();
 }

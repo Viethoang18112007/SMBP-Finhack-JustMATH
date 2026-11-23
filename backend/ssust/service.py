@@ -457,15 +457,18 @@ class Service:
             merchant, card = "Apple Pay payment", "Apple Pay"
         with self._books[self.mode()].session(write=True) as s:
             # Kept so Settings can show what the automation last sent, accepted or not.
-            if cents is None or cents > MAX_CENTS:
+            if amount is None or (isinstance(amount, str) and not amount.strip()):
+                # A run by hand from the Shortcuts editor: no payment, so no amount, but it got here.
+                last = {"at": stamp, "ok": False, "linkOk": True, "amount": _shown(amount),
+                        "detail": "Test run: the link works. A real Apple Pay payment adds the amount."}
+            elif cents is None or cents > MAX_CENTS:
                 last = {"at": stamp, "ok": False, "amount": _shown(amount),
                         "detail": "The amount was not understood. Use Shortcut Input > Amount."}
-                s.set_meta("wallet_last", json.dumps(last))
             else:
                 s.add_inbox({"externalId": f"wallet-{uuid.uuid4().hex}", "source": WALLET_SOURCE, "amount": cents,
                              "merchant": merchant, "card": card, "receivedAt": stamp})
                 last = {"at": stamp, "ok": True, "amount": _shown(amount), "detail": f"{money.hk(cents)} from {merchant}"}
-                s.set_meta("wallet_last", json.dumps(last))
+            s.set_meta("wallet_last", json.dumps(last))
         if not last["ok"]:
             raise ServiceError("Enter an amount greater than zero.")
         return {"ok": True, "amount": cents, "merchant": merchant}
