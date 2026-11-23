@@ -1,0 +1,14 @@
+# Render blueprint: one free web service running serve.py (standard library, no build step).
+services:
+  - type: web
+    name: ssust-api
+    runtime: python
+    plan: free
+    buildCommand: python --version
+    startCommand: python serve.py
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: SSUST_MODE
+        value: demo

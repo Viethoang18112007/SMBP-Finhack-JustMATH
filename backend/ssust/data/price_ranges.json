@@ -1,0 +1,92 @@
+{
+  "records": [
+    {
+      "place": "Nan Yuan", "campus": "hkbu", "osm_id": "node/13121436080",
+      "min_cents": 4200, "max_cents": 9800,
+      "source_name": "HKBU Estates Office, Nan Yuan menu (2025-07)",
+      "source_url": "https://eo.hkbu.edu.hk/content/dam/eo-assets/our-services/landing/catering-services/nan-yuan/Nan%20Yuan%20Menu_20250715.pdf",
+      "checked_on": "2026-11-15",
+      "note": "rice and noodle dishes; tea HK$8 per person extra"
+    },
+    {
+      "place": "Bistro NTT", "campus": "hkbu", "osm_id": "node/13103661183",
+      "min_cents": 6800, "max_cents": 16800,
+      "source_name": "HKBU Estates Office, Bistro NTT lunch menu (2025-10)",
+      "source_url": "https://eo.hkbu.edu.hk/content/dam/eo-assets/our-services/landing/catering-services/bistrontt/menu/27%20Oct%202025%20New%20Lunch%20Menu._20251021_180157_0000.pdf",
+      "checked_on": "2026-11-15",
+      "note": "lunch mains; 10% service charge extra"
+    },
+    {
+      "place": "Harmony Lounge", "campus": "hkbu", "osm_id": "node/13121436078",
+      "min_cents": 4200, "max_cents": 5200,
+      "source_name": "HKBU Estates Office, The Street Cafe @ Harmony Lounge menu (2025-09)",
+      "source_url": "https://eo.hkbu.edu.hk/content/dam/eo-assets/our-services/landing/catering-services/the-street-cafe/menu/2025%2009%20menu%20the%20street%20cafe.pdf",
+      "checked_on": "2026-11-15",
+      "note": "meal boxes, first page of the menu"
+    },
+    {
+      "place": "Asia Pacific Catering (HKUST)", "campus": "hkust", "osm_id": "node/2439978531",
+      "min_cents": 2750, "max_cents": 4200,
+      "source_name": "HKUST Campus Services, LG7 APC menu (2025-06)",
+      "source_url": "https://cso.hkust.edu.hk/sites/default/files/2025-08/APC%20Menu%202025_06.pdf",
+      "checked_on": "2026-11-15",
+      "note": "lunch dishes"
+    },
+    {
+      "place": "Gold Rice Bowl Delicious Food", "campus": "hkust", "osm_id": "node/3788628414",
+      "min_cents": 2900, "max_cents": 6000,
+      "source_name": "HKUST Campus Services, Gold Rice Bowl menu (2024-09)",
+      "source_url": "https://cso.hkust.edu.hk/sites/default/files/2024-08/GRB%20Menu%202024-09.pdf",
+      "checked_on": "2026-11-15",
+      "note": "dishes on the first two pages; drink HK$5 to 6 extra"
+    },
+    {
+      "place": "JoA", "campus": "hkust", "osm_id": "way/1560841331",
+      "min_cents": 4500, "max_cents": 6500,
+      "source_name": "HKUST Campus Services, JoA menu (2026-09)",
+      "source_url": "https://cso.hkust.edu.hk/sites/default/files/2026-08/JoA%20Menu_2026-09.pdf",
+      "checked_on": "2026-11-15",
+      "note": "This-This-Rice bowl, small to large"
+    },
+    {
+      "place": "American Diner", "campus": "hkust", "osm_id": "way/1560841330",
+      "min_cents": 2600, "max_cents": 4600,
+      "source_name": "HKUST Campus Services, American Diner menu (2024-07)",
+      "source_url": "https://cso.hkust.edu.hk/sites/default/files/2024-07/AmericanDiner%20Menu_Eng_Chin_2024-07-22-2_1.pdf",
+      "checked_on": "2026-11-15",
+      "note": "breakfast sets, 8 to 11 am"
+    },
+    {
+      "place": "WeBite Space", "campus": "hkust", "osm_id": "node/2449452717",
+      "min_cents": 2100, "max_cents": 3800,
+      "source_name": "HKUST Campus Services, WeBite menu (2026-09)",
+      "source_url": "https://cso.hkust.edu.hk/sites/default/files/2026-08/WeBite%20Menu_2026-09.pdf",
+      "checked_on": "2026-11-15",
+      "note": "breakfast sets and two or three dishes with rice"
+    },
+    {
+      "place": "UniQue", "campus": "hkust", "osm_id": "node/3788628417",
+      "min_cents": 14800, "max_cents": 25800,
+      "source_name": "HKUST Campus Services, UniQue menu (Aug to Sep 2026)",
+      "source_url": "https://cso.hkust.edu.hk/sites/default/files/2026-08/UniQue%20Menu_Aug%2024%20-%20Sep%204%2C%202026%20Bfast%20A%20%26%20B_Set%20Lunch%2090.pdf",
+      "checked_on": "2026-11-15",
+      "note": "lunch set"
+    },
+    {
+      "place": "Ebeneezer's Kebabs & Pizzeria", "campus": "hkust", "osm_id": "node/3218353496",
+      "min_cents": 3900, "max_cents": 5750,
+      "source_name": "HKUST Campus Services, Ebeneezer's menu (2026-09)",
+      "source_url": "https://cso.hkust.edu.hk/sites/default/files/2026-08/Ebeneezers_Menu_2026-Sep.pdf",
+      "checked_on": "2026-11-15",
+      "note": "kebabs, biryanis, curries and meat plates; pizzas HK$75 to 88"
+    },
+    {
+      "place": "Subway", "campus": "hkust", "osm_id": "node/9843799523",
+      "min_cents": 3400, "max_cents": 4700,
+      "source_name": "HKUST Campus Services, Subway menu (2026-07)",
+      "source_url": "https://cso.hkust.edu.hk/sites/default/files/2026-07/Subway%20Menu%20-%202026-07-03.pdf",
+      "checked_on": "2026-11-15",
+      "note": "6-inch subs and burritos; 12-inch HK$26 to 28 more"
+    }
+  ]
+}

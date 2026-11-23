@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SSUST</title>
+  <link rel="icon" type="image/png" href="img/icon-64.png">
+  <link rel="apple-touch-icon" href="img/icon-180.png">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+</head>
+<body>
+  <main class="desk" id="desk">
+    <div class="device" id="device" data-view="app">
+    <div class="statusbar" id="statusbar" role="button" tabindex="0" aria-label="Notifications. Tap or swipe down">
+      <span class="sb-time" id="sb-time" aria-hidden="true">--:--</span>
+      <span class="sb-icons" aria-hidden="true">
+        <svg viewBox="0 0 18 12" width="18" height="12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+        <svg viewBox="0 0 16 12" width="16" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1.5 4.5a9.5 9.5 0 0 1 13 0M4 7.3a6 6 0 0 1 8 0"/><circle cx="8" cy="10" r="1.2" fill="currentColor" stroke="none"/></svg>
+        <svg viewBox="0 0 27 12" width="27" height="12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.5"/><rect x="2.5" y="2.5" width="16" height="7" rx="1.5"/><rect x="24.8" y="4" width="1.7" height="4" rx="0.8" opacity="0.5"/></svg>
+      </span>
+    </div>
+    <div class="notify" id="notify" role="status" aria-live="polite" hidden></div>
+    <section class="notify-center" id="notify-center" data-backdrop="center" aria-label="Notifications" hidden></section>
+    <section class="home" id="home" aria-label="Home screen" hidden>
+      <div class="home-pager" id="home-pager" tabindex="0" aria-roledescription="pager" aria-label="Home screen pages. Swipe, drag or use the arrow keys">
+        <div class="home-page" data-page="0" aria-label="Page 1 of 2: widgets">
+          <div class="home-widgets" id="home-widgets"></div>
+          <section class="widget large qa" id="home-quick" aria-label="SSUST quick add"></section>
+        </div>
+        <div class="home-page" data-page="1" aria-label="Page 2 of 2: apps">
+          <div class="home-grid" role="group" aria-label="Apps">
+          <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g1"></span><span class="app-name">Calendar</span></span>
+          <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g4"></span><span class="app-name">Weather</span></span>
+          <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g5"></span><span class="app-name">Music</span></span>
+          <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g7"></span><span class="app-name">Files</span></span>
+          <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g8"></span><span class="app-name">Photos</span></span>
+          <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g9"></span><span class="app-name">Maps</span></span>
+          <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g10"></span><span class="app-name">Mail</span></span>
+          <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g11"></span><span class="app-name">Settings</span></span>
+          </div>
+          <p class="home-note">Simulated home screen</p>
+        </div>
+      </div>
+      <div class="home-dots" id="home-dots" role="group" aria-label="Pages">
+        <button type="button" class="home-dot on" data-page-dot="0" aria-label="Page 1: widgets" aria-current="true"></button>
+        <button type="button" class="home-dot" data-page-dot="1" aria-label="Page 2: apps"></button>
+      </div>
+      <div class="home-dock" role="group" aria-label="Dock">
+        <button type="button" class="app-icon" id="ssust-icon" data-open-app="today"><img src="img/icon-180.png" alt="" width="60" height="60"><span class="app-name">SSUST</span></button>
+        <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g2"></span><span class="app-name">Camera</span></span>
+        <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g3"></span><span class="app-name">Notes</span></span>
+        <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g6"></span><span class="app-name">Clock</span></span>
+      </div>
+    </section>
+    <section class="cam-screen" id="cam-screen" aria-label="Scan a receipt" hidden></section>
+    <section class="phone" id="phone" aria-label="SSUST app">
+      <header class="top">
+        <div class="brand"><img class="brand-logo" src="img/logo.png" alt="SSUST" width="101" height="32"></div>
+        <div class="top-tools">
+          <span class="mode-badge" id="mode-badge" aria-live="polite">Loading…</span>
+          <button type="button" class="icon-btn" id="tour-btn" aria-label="Take the guided tour" title="Take the guided tour">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6"/><path d="M12 17.2h.01"/></svg>
+          </button>
+        </div>
+      </header>
+      <div class="welcome" id="tour-offer" role="region" aria-labelledby="welcome-title" hidden>
+        <div class="welcome-text">
+          <strong id="welcome-title">New here?</strong>
+          <span>See how SSUST works in about 2 minutes.</span>
+        </div>
+        <div class="welcome-actions">
+          <button class="primary small" type="button" data-tour="auto">Show me around</button>
+          <button class="ghost small quiet" type="button" data-offer="never">Skip</button>
+        </div>
+      </div>
+      <div class="screen" id="screen"></div>
+      <div class="bottom" id="bottom">
+        <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+        <div class="dock" id="dock" hidden>
+          <button class="primary add-btn" id="add" type="button">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Add payment</span>
+          </button>
+        </div>
+        <nav class="nav" id="nav" aria-label="Screens">
+          <span class="nav-pill" id="nav-pill" aria-hidden="true" hidden></span>
+          <button type="button" data-screen="today">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/></svg>
+            <span>Today</span>
+          </button>
+          <button type="button" data-screen="map">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
+            <span>Map</span>
+          </button>
+          <button type="button" data-screen="week">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+            <span>Week</span>
+          </button>
+          <button type="button" data-screen="settings">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+            <span>Settings</span>
+          </button>
+        </nav>
+      </div>
+      <div class="sheet" id="sheet" hidden></div>
+    </section>
+    <div class="home-strip"><button type="button" class="home-bar" id="home-bar" aria-label="Go to the home screen"><span aria-hidden="true"></span></button></div>
+    </div>
+    <aside class="desk-side" id="desk-side" aria-label="Demo controls"></aside>
+  </main>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

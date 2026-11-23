@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+/data/
+*.db-journal
+*.db-wal
+*.db-shm
+
+# iOS shell (Capacitor): dependencies and signing secrets never go in git
+node_modules/
+*.p8
+*.p12
+*.mobileprovision

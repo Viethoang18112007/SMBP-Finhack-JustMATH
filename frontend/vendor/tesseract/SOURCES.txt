@@ -1,0 +1,15 @@
+Offline OCR for "Scan receipt", vendored as plain files (no build step, no network at run time).
+
+tesseract.min.js, worker.min.js   tesseract.js 5.1.1          Apache License 2.0 (LICENSE)
+                                  https://github.com/naptha/tesseract.js
+core/tesseract-core-simd-lstm.wasm.js
+                                  tesseract.js-core 5.1.1     Apache License 2.0 (core/LICENSE)
+                                  https://github.com/naptha/tesseract.js-core
+lang/eng.traineddata.gz           @tesseract.js-data/eng 1.0.0 (4.0.0_best_int)
+lang/chi_tra.traineddata.gz       @tesseract.js-data/chi_tra 1.0.0 (4.0.0_best_int)
+                                  Tesseract language data, Apache License 2.0
+                                  https://github.com/tesseract-ocr/tessdata
+
+Downloaded from https://cdn.jsdelivr.net/npm/ on 2026-11-15. Only the SIMD + LSTM core is
+included (every current browser supports WebAssembly SIMD); without it, the app says the
+receipt could not be read and the amount is typed in by hand.

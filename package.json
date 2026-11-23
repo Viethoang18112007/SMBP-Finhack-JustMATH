@@ -1,0 +1,16 @@
+{
+  "name": "ssust-ios-shell",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iOS shell for SSUST (Capacitor). Not needed for the web app or the Python backend.",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.6.2",
+    "@capacitor/ios": "8.6.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.2"
+  }
+}
