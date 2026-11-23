@@ -119,6 +119,12 @@ class Codemagic(unittest.TestCase):
         self.assertNotIn(-1, positions, dict(zip(steps, positions)))
         self.assertEqual(positions, sorted(positions))
 
+    def test_build_number_is_above_the_latest_testflight_build(self):
+        # Codemagic counts from 1 again for every new application; Apple refuses a used number.
+        self.assertIn("APP_STORE_APPLE_ID: 6837791284", self.text)
+        self.assertIn('app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID"', self.text)
+        self.assertIn("LATEST + 1", self.text)
+
     def test_publishes_to_testflight_through_the_integration(self):
         self.assertIn("auth: integration", self.text)
         self.assertIn("submit_to_testflight: true", self.text)

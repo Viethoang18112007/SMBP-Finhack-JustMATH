@@ -18,6 +18,8 @@ workflows:
         # Swift Package Manager project: there is no .xcworkspace, only the .xcodeproj.
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
+        # The app's Apple ID in App Store Connect (App Information > Apple ID). Not a secret.
+        APP_STORE_APPLE_ID: 6837791284
     scripts:
       - name: Install the iOS shell dependencies
         script: npm ci
@@ -27,8 +29,14 @@ workflows:
         script: xcode-project use-profiles
       - name: Use the Codemagic build number
         script: |
+          # Apple refuses a build number already used. Codemagic's $BUILD_NUMBER starts at 1 again for a
+          # new application, so take the larger of it and the latest TestFlight build + 1.
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null | tail -1 | tr -cd '0-9')
+          LATEST=${LATEST:-0}
+          NUMBER=$(( LATEST + 1 > BUILD_NUMBER ? LATEST + 1 : BUILD_NUMBER ))
+          echo "Latest TestFlight build: $LATEST, Codemagic build: $BUILD_NUMBER, using: $NUMBER"
           # Info.plist reads CFBundleVersion from CURRENT_PROJECT_VERSION.
-          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = $BUILD_NUMBER;/g" "$XCODE_PROJECT/project.pbxproj"
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = $NUMBER;/g" "$XCODE_PROJECT/project.pbxproj"
           grep -m1 "CURRENT_PROJECT_VERSION" "$XCODE_PROJECT/project.pbxproj"
       - name: Build the ipa
         script: |
