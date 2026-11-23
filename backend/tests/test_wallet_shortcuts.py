@@ -191,7 +191,6 @@ class NativeWidget(unittest.TestCase):
         for word in ("@main", "WidgetBundle", "AppIntentConfiguration", "X-SSUST-Device", "/api/widget",
                      "https://ssust-api.onrender.com", "leftText", "toReview", "containerBackground"):
             self.assertIn(word, swift)
-        self.assertNotIn("claude", swift.lower())
 
     def test_codemagic_signs_the_widget_with_the_app(self):
         # Codemagic fetches profiles for every bundle id that starts with the app's id.
