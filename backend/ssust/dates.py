@@ -64,12 +64,20 @@ class LiveClock:
             raise ValueError("now() must return a time-zone-aware datetime.")
         return moment.astimezone(self._tz).date().isoformat()
 
+    def hour(self):
+        """The hour (0 to 23) in Hong Kong now, for the meals still to come today."""
+        return self._now().astimezone(self._tz).hour
+
 
 class FixedClock:
-    """Always the same day. Used by demo mode and by tests."""
+    """Always the same day (and hour, noon by default). Used by demo mode and by tests."""
 
-    def __init__(self, day):
+    def __init__(self, day, hour=12):
         self._day = parse_day(day).isoformat()
+        self._hour = hour
 
     def today(self):
         return self._day
+
+    def hour(self):
+        return self._hour

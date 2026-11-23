@@ -356,7 +356,7 @@ h1, h2, h3, p { margin: 0; }
 /* Bottom navigation: icons and labels. */
 .nav {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--s1);
   padding: 6px var(--s2) calc(6px + env(safe-area-inset-bottom, 0px));
   background: white;
@@ -1185,3 +1185,69 @@ body.record-mode .desk-side { visibility: hidden; }
 .lk-thumb.has-img { object-fit: cover; background: #fff; padding: 0; }
 /* With a result on screen: a smaller viewfinder right above it, no shutter or samples. */
 .lk-finder.is-compact { aspect-ratio: auto; height: 210px; border-radius: 28px; }
+
+/* Rewards: the streak shape, last week's stars, badges and campus medals (rewards.js). */
+.rewards-strip {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+}
+.streak-chip { display: inline-flex; align-items: center; gap: var(--s2); }
+.streak-text { display: flex; flex-direction: column; line-height: 1.25; }
+.streak-text strong { font-size: 14px; }
+.streak-next { font-size: 12px; color: var(--muted); }
+.shape { flex: 0 0 auto; color: var(--neutral); }
+.shape-square { color: var(--blue-2); }
+.shape-star { color: var(--warn); }
+.shape-diamond { color: #0e8fb3; }
+.shape-hexagon { color: #7a3fd1; }
+.shape-crown { color: #c9971a; }
+.shape-none { color: var(--muted); }
+.stars { display: inline-flex; gap: 1px; vertical-align: middle; }
+.star { color: var(--line); }
+.star.on { color: var(--warn); }
+.strip-stars { display: inline-flex; align-items: center; gap: var(--s1); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.progress-row { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s3); font-size: 14px; }
+.progress-card .label { margin-top: var(--s4); }
+.badges { list-style: none; margin: var(--s2) 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s2); }
+.badge-item {
+  display: grid; grid-template-columns: auto 1fr; column-gap: var(--s2); align-items: center;
+  padding: var(--s2); border: 1px solid var(--line); border-radius: var(--r-ctl); color: var(--muted);
+}
+.badge-item svg { grid-row: span 2; }
+.badge-item.earned { border-color: var(--green); background: var(--green-bg); color: var(--green); }
+.badge-name { font-weight: 700; font-size: 13px; color: var(--ink); }
+.badge-item:not(.earned) .badge-name { color: var(--ink-2); }
+.badge-how { font-size: 11px; line-height: 1.3; color: var(--muted); }
+.medal-line { display: flex; align-items: flex-start; gap: var(--s2); margin: var(--s2) 0; font-size: 13px; color: var(--ink-2); }
+.medal { flex: 0 0 auto; color: var(--line); }
+.medal-bronze { color: #b06a2c; }
+.medal-silver { color: #8c99a8; }
+.medal-gold { color: #d4a514; }
+.log-meal { margin: 0 0 var(--s2) var(--s5); }
+.log-meal[hidden] { display: none; }
+.place-line { margin: 0 0 var(--s2); }
+.lk-streak { display: flex; justify-content: center; margin: 0 0 12px; color: #fff; }
+.lk-streak .streak-next { color: #c9cdd4; }
+
+/* Feedback tab. */
+.rating { display: flex; gap: var(--s1); margin-top: var(--s3); }
+.rate { background: transparent; border: 0; padding: 4px; min-width: 44px; min-height: 44px; color: var(--line); border-radius: var(--r-ctl); }
+.rate.on { color: var(--warn); }
+.rating-word { font-size: 13px; color: var(--muted); margin: var(--s1) 0 var(--s3); }
+.feedback-input {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: var(--s3);
+  border: 1px solid var(--line); border-radius: var(--r-ctl); resize: vertical; margin-bottom: var(--s2);
+}
+.feedback-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.feedback-list li { display: flex; flex-direction: column; gap: 2px; padding-bottom: var(--s2); border-bottom: 1px solid var(--line); }
+.feedback-meta { font-size: 12px; color: var(--warn); }
+.feedback-text { font-size: 14px; white-space: pre-wrap; }
+
+/* The phone app (Capacitor): full screen, room for the status bar and the home indicator,
+   no demo controls, and no double-tap zoom on empty areas. */
+html.native, html.native body { touch-action: manipulation; }
+html.native .desk { display: block; padding: 0; }
+html.native .phone { width: 100%; height: 100vh; height: 100dvh; border-radius: 0; border: 0; box-shadow: none; }
+html.native .top { padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
+html.native .sheet { padding-top: env(safe-area-inset-top, 0px); }
+html.native #tour-btn, html.native .mode-badge, html.native #tour-offer { display: none; }

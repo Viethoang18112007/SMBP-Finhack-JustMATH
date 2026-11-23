@@ -46,7 +46,7 @@ export function addSheetHtml() {
   return `<div class="panel add-panel" role="dialog" aria-modal="true" aria-labelledby="add-title">
       <span class="grip" aria-hidden="true"></span>
       <h2 class="sheet-title" id="add-title">Add payment</h2>
-      ${scanRow}
+      ${state.draft.place ? `<p class="hint place-line">Meal at ${escapeHtml(state.draft.place.name)}. It counts for your campus medal when it fits today's food money.</p>` : scanRow}
       <label class="amount-field${error ? " invalid" : ""}${found ? " from-receipt" : ""}" for="amount">
         <span class="cur" aria-hidden="true">HK$</span>
         <input class="amount" id="amount" inputmode="decimal" autocomplete="off" placeholder="0" value="${escapeHtml(state.draft.amount)}" aria-label="Amount in Hong Kong dollars" aria-describedby="amount-error preview"${error ? ' aria-invalid="true"' : ""}>

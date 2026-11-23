@@ -12,9 +12,11 @@ import re
 import unittest
 from pathlib import Path
 
+from unittest import mock
+
 from ssust.server import APP_ORIGINS
 
-from tests.test_api import ApiTest
+from tests.test_api import FUNDS_TEXT, ApiTest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 FRONTEND = ROOT / "frontend"
@@ -44,7 +46,7 @@ class ApiBase(unittest.TestCase):
 
     def test_api_calls_go_through_the_config_point(self):
         text = read(JS / "api.js")
-        self.assertIn('import { apiUrl } from "./config.js";', text)
+        self.assertIn('import { NATIVE, apiUrl, deviceId } from "./config.js";', text)
         self.assertIn("fetch(apiUrl(path)", text)
 
     def test_no_module_fetches_the_api_directly(self):
@@ -181,7 +183,7 @@ class AppOrigin(ApiTest):
         self.assertEqual(payload, b"")
         self.assertEqual(headers["Access-Control-Allow-Origin"], self.APP)
         self.assertEqual(headers["Access-Control-Allow-Methods"], "GET, POST")
-        self.assertEqual(headers["Access-Control-Allow-Headers"], "Content-Type")
+        self.assertEqual(headers["Access-Control-Allow-Headers"], "Content-Type, X-SSUST-Device")
         self.assertEqual(headers["Access-Control-Max-Age"], "600")
         for name in ("X-Content-Type-Options", "Content-Security-Policy"):
             self.assertIsNotNone(headers[name])
@@ -230,11 +232,67 @@ class RenderService(unittest.TestCase):
         self.assertIn("    plan: free", lines)
 
 
+class AppDevices(ApiTest):
+    """Each iPhone sends its own id and gets its own live data. The app has no demo mode."""
+
+    APP = AppOrigin.APP
+    send = AppOrigin.send
+    ONE = "a" * 32
+    TWO = "b" * 32
+
+    def device_call(self, method, path, device, body=None):
+        status, headers, payload = self.send(method, path, self.APP, body, extra={"X-SSUST-Device": device})
+        return status, json.loads(payload)
+
+    def test_each_device_has_its_own_live_book(self):
+        status, data = self.device_call("POST", "/api/settings", self.ONE, FUNDS_TEXT)
+        self.assertEqual(status, 200, data)
+        self.assertEqual(data["mode"], "live")
+        self.assertFalse(data["needsFunds"])
+        self.assertTrue(self.device_call("GET", "/api/state", self.TWO)[1]["needsFunds"])
+        self.assertTrue(self.state()["needsFunds"])  # the web book is untouched
+        self.assertTrue((self.dir / "devices" / self.ONE / "ssust.db").is_file())
+
+    def test_live_even_when_the_web_is_in_demo(self):
+        self.call("POST", "/api/mode", {"mode": "demo"})
+        self.assertEqual(self.device_call("GET", "/api/state", self.ONE)[1]["mode"], "live")
+
+    def test_no_demo_in_the_app(self):
+        status, data = self.device_call("POST", "/api/mode", self.ONE, {"mode": "demo"})
+        self.assertEqual(status, 400)
+        self.assertIn("demo", data["error"].lower())
+
+    def test_bad_device_ids_are_refused(self):
+        for device in ("short", "A" * 32, "g" * 32, "a" * 33, "../" + "a" * 29):
+            with self.subTest(device=device):
+                self.assertEqual(self.device_call("GET", "/api/state", device)[0], 400)
+
+    def test_number_of_devices_is_capped(self):
+        with mock.patch("ssust.server.MAX_DEVICES", 1):
+            self.assertEqual(self.device_call("GET", "/api/state", self.ONE)[0], 200)
+            status, data = self.device_call("GET", "/api/state", self.TWO)
+            self.assertEqual(status, 503)
+            self.assertEqual(self.device_call("GET", "/api/state", self.ONE)[0], 200)
+
+
 class IosProject(unittest.TestCase):
     def test_export_compliance_is_declared(self):
         with open(ROOT / "ios" / "App" / "App" / "Info.plist", "rb") as handle:
             info = plistlib.load(handle)
         self.assertIs(info["ITSAppUsesNonExemptEncryption"], False)
+
+    def test_app_icon_and_splash_are_ssust_without_alpha(self):
+        # Apple refuses an app icon with an alpha channel. Colour type 2 is 8-bit RGB.
+        assets = ROOT / "ios" / "App" / "App" / "Assets.xcassets"
+        files = {assets / "AppIcon.appiconset" / "AppIcon-512@2x.png": 1024}
+        for name in ("splash-2732x2732.png", "splash-2732x2732-1.png", "splash-2732x2732-2.png"):
+            files[assets / "Splash.imageset" / name] = 2732
+        for path, size in files.items():
+            with self.subTest(file=path.name):
+                head = path.read_bytes()[:26]
+                self.assertEqual(head[:8], bytes([137, 80, 78, 71, 13, 10, 26, 10]))
+                self.assertEqual((int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")), (size, size))
+                self.assertEqual((head[24], head[25]), (8, 2))
 
     def test_native_error_message_does_not_mention_run_py(self):
         text = read(JS / "main.js")

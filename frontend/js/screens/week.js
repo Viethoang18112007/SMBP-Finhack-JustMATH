@@ -2,6 +2,7 @@ import { dayLabel, dayMonth, escapeHtml, hk, shortDate } from "../format.js";
 import { shownWeek, state, sumOn } from "../store.js";
 import { screenError } from "./rows.js";
 import { insightsDetail } from "./insights.js";
+import { progressCard } from "../rewards.js";
 
 // Previous and next stored weeks around the one shown. Never a week after the current one.
 function neighbours(week) {
@@ -73,5 +74,6 @@ export function weekScreen() {
       ${weekSummary(shown)}
     </section>
     ${past ? "" : insightsDetail()}
-    <div class="list">${rows}</div>`;
+    <div class="list">${rows}</div>
+    ${past ? "" : progressCard()}`;
 }

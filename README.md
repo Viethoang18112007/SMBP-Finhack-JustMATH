@@ -87,9 +87,19 @@ To reset, stop the app and delete the file(s) in `data/`.
 
 Everyone who opens the public address shares the same data, and the free plan wipes the disk on every restart, so use it to show the demo, not to keep real spending. The free plan also sleeps after a while without visits; the first visit then takes about a minute.
 
-### iOS app shell (work in progress)
+### iOS app (TestFlight)
 
 The same `frontend/` folder can also run inside an iOS app made with Capacitor 8 (Swift Package Manager). This is only for the iOS build: the web app and the backend above still need no npm and no build step. `package.json` and `capacitor.config.json` (web folder `frontend`) describe the shell, `ios/` is the generated Xcode project, and `codemagic.yaml` builds it on a cloud Mac and sends it to TestFlight. Inside the app there is no simulated phone frame or home screen, and API calls go to the hosted server set in `frontend/js/config.js` (`NATIVE_API_BASE`, the Render service `ssust-api` from `render.yaml`). On the web that base is empty, so nothing changes. The server answers that one app origin (`capacitor://localhost`) with CORS headers on `/api/` only (GET and POST, no credentials); every other origin gets none, and the Host check, body limit and validation stay the same. After changing `frontend/`, run `npx cap sync ios` (Node 22 or later) to copy it into the iOS project.
+
+The app has **no demo**: no Live/Demo switch, no sample weeks, tour, simulated taps or notifications. Each phone sends a random id of its own (`X-SSUST-Device`, kept in the app's storage) and gets its own live data on the server (`data/devices/<id>/`, at most 200 phones per server). Requests without that header (the web app) use the shared data exactly as before. The header leaves room for the status bar and the home indicator, and a double tap on an empty area no longer zooms. On Render's free plan the disk is wiped when the service restarts or sleeps, so app data does not last there; a paid disk (set `SSUST_DATA` to it) would keep it.
+
+## Rewards and feedback
+
+- **Streak with a shape:** days in a row with at least one payment logged. The shape changes as it grows: square (1 day), star (3), diamond (7), hexagon (14), crown (30). It stays alive until today ends. Shown on Today, in the camera screen and on Week.
+- **Stars for last week:** 1 to 5 stars for how the last finished week was balanced. 1: some spending had nothing to cover it. 2: Long-term Savings had to cover spending, or nothing was left. 3: money was left (also the most a week with a reallocation between funds can get). 4: at least 10% of the spending budget left. 5: at least 20% left. Long-term Savings is not spending.
+- **Badges:** First entry, Planner, On a roll (3 days), Full week (7 days), Money left (3 stars), Five stars, Saver (HK$500 in Long-term Savings), Smart explorer (a bronze medal). On Week, under Your progress.
+- **Campus medals:** on the Map, tap a place, then **Log a meal here** (it opens Add payment with the place). Bronze at 3 different places near a campus, silver at 7, gold at 15. A meal only counts when it fit that day's food money, so the medal rewards eating well within budget, not eating out more. Undoing the payment removes it.
+- **Feedback** (the last tab): 1 to 5 stars and a few words, saved on the server, with the latest feedback listed below.
 
 ## Phone view, sliders and the 30 day projection
 
@@ -168,7 +178,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (613 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (669 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 
@@ -234,7 +244,7 @@ The Map tab shows nearby food places and shops from OpenStreetMap around a campu
 
 The MVP focuses on food decisions: the map opens on food places, and the Shopping layer is folded away under "More layers".
 
-SSUST never presents an estimate as a real price. Each food place is in one of these states, compared with **today's food money left** (the daily allowance minus what you spent on food today):
+SSUST never presents an estimate as a real price. Each food place is in one of these states, compared with **one meal's share of today's food money**: what is left for food today (the daily allowance minus what you spent on food today) divided by the meals still to come, by Hong Kong time (3 before 11:00, 2 before 16:00, then 1; demo mode is at noon). A HK$130 lunch never "fits" HK$140 for the whole day. The map says both numbers ("HK$140 left for food today, 2 meals to go: about HK$70 a meal").
 
 | State | When | Looks like |
 | --- | --- | --- |
@@ -352,7 +362,8 @@ flowchart LR
 | `backend/ssust/projection.py` | 30 day spending projection and its status, pure functions |
 | `backend/ssust/receipt.py` | Finds the total and a merchant in OCR text, pure functions |
 | `backend/ssust/places.py` | Campuses, OpenStreetMap fetch and filter, price band per place, offline snapshot |
-| `backend/ssust/store.py` | SQLite storage (schema v4: payments, undo, the inbox), integer cents only, separate live and demo files |
+| `backend/ssust/store.py` | SQLite storage (schema v5: payments, undo, the inbox, meals logged at a place, feedback), integer cents only, separate live and demo files |
+| `backend/ssust/rewards.py` | Streak and its shape, last week's stars, campus medals and badges (pure functions) |
 | `backend/ssust/dates.py` | Week dates, live clock (Hong Kong time) and fixed demo clock |
 | `backend/ssust/validate.py` | Parsing of amounts and notes |
 | `frontend/` | Vanilla HTML, CSS and JavaScript modules, no build step |
@@ -366,11 +377,13 @@ All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: 
 | `GET /api/state` | `?week=YYYY-MM-DD` (a past Monday, optional) | The current week (or a past week, read-only): mode, funds, payments, today's figures, fund tanks, campus |
 | `POST /api/mode` | `{"mode": "live" \| "demo", "scenario"?: "sample" \| "empty" \| "over"}` | Switch mode; demo restarts the chosen demo week |
 | `POST /api/settings` | `{"main": "770", "snack": "80", "fixed": "200", "experience": "120", "development": "80", "savings": "500"}` | Set this week's opening amounts (HK$ as text, 0 allowed). A refused field comes back as `{"error", "field", "minimum"?}` |
-| `POST /api/payments` | `{"amount": "48", "category": "main", "note"?: "...", "choice"?: "snack" \| "flex" \| "savings", "requestId"?: "<8 to 64 of A-Z a-z 0-9 _ ->"}` | Add a payment. When it goes over, the answer has `needsConfirm` and the cover options; send it again with a `choice`. (`flex` = reallocate from Experience, then Development; the older value for it is still accepted.) A `requestId` already used returns that payment with `"replayed": true` and saves nothing new |
+| `POST /api/payments` | `{"amount": "48", "category": "main", "note"?: "...", "choice"?: "snack" \| "flex" \| "savings", "requestId"?: "<8 to 64 of A-Z a-z 0-9 _ ->", "place"?: {"id": "node/123", "name": "..."}}` | Add a payment. When it goes over, the answer has `needsConfirm` and the cover options; send it again with a `choice`. (`flex` = reallocate from Experience, then Development; the older value for it is still accepted.) A `requestId` already used returns that payment with `"replayed": true` and saves nothing new |
 | `POST /api/payments/undo` | `{"id": 12}` | Undo one of this week's payments in the current mode. A second undo of the same payment is refused with a clear message |
 | `POST /api/campus` | `{"campus": "hkbu" \| "hkust" \| "cuhk" \| "hku" \| "cityu"}` | Save the campus for the current mode |
-| `GET /api/places` | `?kind=food\|shop&radius=0.5\|1\|3\|5\|10` (default food, 3 km) | Places around the saved campus. Food comes with `budget` (`remaining`, `bands`, `verifiedRecords`) and, per place, `status` (`fits`, `over`, `estimate`, `unlikely`, `unknown`, `verified`), `label`, `why`, `verified` (dish, price, source, date, or null), `range`, and `fit` (the estimated range compared with food left: an estimate, never a verified fit) |
+| `GET /api/places` | `?kind=food\|shop&radius=0.5\|1\|3\|5\|10` (default food, 3 km) | Places around the saved campus. Food comes with `budget` (`remaining`, `mealsLeft`, `perMeal`, `bands`, `verifiedRecords`) and, per place, `status` (`fits`, `over`, `estimate`, `unlikely`, `unknown`, `verified`), `label`, `why`, `verified` (dish, price, source, date, or null), `range`, and `fit` (the estimated range compared with food left: an estimate, never a verified fit) |
 | `GET /api/insights` | | This week's pace warnings and breakdown (the same as `insights` in the state) |
+| `GET /api/feedback` | | The latest feedback (`{"feedback": [{"id", "rating", "text", "createdAt"}]}`), newest first |
+| `POST /api/feedback` | `{"rating": 1 to 5, "text"?: "<at most 500 characters>"}` | Save feedback about the app; answers with the latest feedback |
 | `POST /api/assistant/parse` | `{"text": "$50 KFC dinner"}` | `{"ok", "amount" (cents), "category", "note", "reason", "confident", "typo", "chain"}` or `{"ok": false, "error"}`. Reads only |
 | `POST /api/receipt/parse` | `{"text": "<OCR text, at most 3500 characters>"}` | `{"found", "amount" (cents or null), "line", "merchant", "entry"}` where `entry` is the parse_entry result for the merchant (fund, reason, typo). Reads only: nothing is saved |
 | `POST /api/connected` | `{"source": "apple_pay" \| "octopus" \| "hsbc", "on": true \| false}` | Switch a simulated payment source in the current mode |
@@ -378,7 +391,7 @@ All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: 
 | `POST /api/inbox/confirm` | `{"id": 3, "category": "main", "choice"?: ...}` | Confirm it into a fund through the same logic as `/api/payments` (same `needsConfirm` step) |
 | `POST /api/inbox/dismiss` | `{"id": 3}` | Dismiss it; nothing is saved |
 
-The state also carries `projection`, `insights`, `inbox` (pending items with `suggestedFund`, `suggestedReason` and `typo`) and `connected`. Food places can carry `priceRange` (`min`, `max`, `sourceName`, `sourceUrl`, `checkedOn`, `note`) with the statuses `range_fits`, `range_may`, `range_over`, or `chain` (`chain`, `what`, `lowCents`, `highCents`, `sources`, `checkedOn`, `needsCheck`) with `chain_fits`, `chain_tight`, `chain_over`; `budget` adds `rangeRecords` and `chainRecords`.
+The state also carries `rewards` (`streak`, `lastWeek`, `medals`, `badges`), `projection`, `insights`, `inbox` (pending items with `suggestedFund`, `suggestedReason` and `typo`) and `connected`. Food places can carry `priceRange` (`min`, `max`, `sourceName`, `sourceUrl`, `checkedOn`, `note`) with the statuses `range_fits`, `range_may`, `range_over`, or `chain` (`chain`, `what`, `lowCents`, `highCents`, `sources`, `checkedOn`, `needsCheck`) with `chain_fits`, `chain_tight`, `chain_over`; `budget` adds `rangeRecords` and `chainRecords`.
 
 Categories are `main`, `snack`, `fixed`, `experience`, `development`. Every other path serves a file from `frontend/`.
 
@@ -389,10 +402,11 @@ Categories are `main`, `snack`, `fixed`, `experience`, `development`. Every othe
 - **Connected payments are simulated.** No Wallet, Octopus or bank data is read; a "tap" is a sample payment created by the demo controls.
 - **Receipt scanning can misread.** The amount, the shop and the fund are only pre-filled; you always check them and confirm. The first scan loads about 8 MB of OCR files from the app itself.
 - **The Assistant is offline rules, not AI.** Fund picking is chain names and keywords; it says "Not sure" when nothing matches, and you can change the fund.
-- **The phone frame is a simulation** for demos on a wide screen: it is not an iPhone app, and the home screen icons are placeholders. The home screen, its widgets (quick add included) and the camera screen only exist in that frame; on a narrow screen Add payment > Scan receipt uses the same pipeline.
+- **The phone frame is a simulation** for demos on a wide screen (the real iPhone app is the TestFlight build above), and the home screen icons are placeholders. The home screen, its widgets (quick add included) and the camera screen only exist in that frame; on a narrow screen Add payment > Scan receipt uses the same pipeline.
 - **The ranking only covers the nearest 60 places.** The list and map show the nearest 60 places in the chosen radius; a place that fits but is further out is not pulled in.
 - **Map tiles come from OpenStreetMap's volunteer-run tile servers** and are meant for light demo use, not for heavy traffic.
 - No bank connection and no real money: you type in what you spend.
+- **No new chain prices this time.** The chains' own sites show no prices and the delivery sites refuse automated reading, so none were added: a price is only added when it was read on its page that day.
 - One user per computer; `run.py` only listens on `127.0.0.1`. The hosted `serve.py` is shared by every visitor.
 
 ## Credits

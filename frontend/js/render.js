@@ -1,6 +1,6 @@
 // Draws the current screen, the Add sheet and the toast, then wires the buttons.
 
-import { applyNumbers, chooseCampus, commit, confirmInbox, dismissInbox, loadMap, onSave, scanReceipt, setConnected, showToast, showWeek, simulateTap, switchMode, undoPayment } from "./actions.js";
+import { applyNumbers, chooseCampus, commit, confirmInbox, dismissInbox, loadMap, logMealAt, onSave, scanReceipt, sendFeedback, setConnected, showToast, showWeek, simulateTap, switchMode, undoPayment } from "./actions.js";
 import { renderDeskSide, updateReviewPreview } from "./inbox.js";
 import { bindBudget } from "./budget.js";
 import { applyFrame, renderHome } from "./device.js";
@@ -13,12 +13,13 @@ import { setFundView, setPhoneView, state } from "./store.js";
 import { resetOffer } from "./tour.js";
 import { addSheetHtml } from "./screens/add.js";
 import { dayScreen } from "./screens/day.js";
+import { feedbackScreen } from "./screens/feedback.js";
 import { mapScreen } from "./screens/map.js";
 import { settingsScreen } from "./screens/settings.js";
 import { todayScreen } from "./screens/today.js";
 import { weekScreen } from "./screens/week.js";
 
-const screens = { today: todayScreen, week: weekScreen, day: dayScreen, settings: settingsScreen, map: mapScreen };
+const screens = { today: todayScreen, week: weekScreen, day: dayScreen, settings: settingsScreen, map: mapScreen, feedback: feedbackScreen };
 // Screens where the Add payment button sits above the navigation.
 const WITH_ADD = new Set(["today", "week", "day", "map"]);
 
@@ -275,6 +276,17 @@ function bind() {
   document.querySelectorAll("[data-place]").forEach((btn) => btn.addEventListener("click", () => {
     selectPlace(btn.dataset.place);
   }));
+  document.querySelectorAll("[data-log-place]").forEach((btn) => btn.addEventListener("click", () => logMealAt(btn.dataset.logPlace)));
+  // Feedback: the stars re-render (focus stays on the star), the words are kept as they are typed.
+  document.querySelectorAll("[data-rating]").forEach((btn) => btn.addEventListener("click", () => {
+    state.feedback.rating = Number(btn.dataset.rating);
+    state.feedback.sent = false;
+    state.feedback.error = "";
+    render();
+    document.querySelector(`[data-rating="${state.feedback.rating}"]`)?.focus();
+  }));
+  document.getElementById("feedback-text")?.addEventListener("input", (event) => { state.feedback.text = event.target.value; });
+  document.getElementById("send-feedback")?.addEventListener("click", sendFeedback);
   const sheetEl = document.getElementById("sheet");
   sheetEl.querySelectorAll('input[name="cover"]').forEach((input) => input.addEventListener("change", () => {
     selectOption(sheetEl, state.sheet, input.value);

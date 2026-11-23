@@ -16,6 +16,7 @@ import { registerOverlay, setHtml } from "./closers.js";
 import { openApp } from "./device.js";
 import { CATEGORIES, FUND_NAME, escapeHtml, hk } from "./format.js";
 import { readReceipt, trimText } from "./ocr.js";
+import { streakChip } from "./rewards.js";
 import { state } from "./store.js";
 
 // Sample receipt images served from frontend/img/samples (fictional, marked Sample on the image).
@@ -130,6 +131,7 @@ function cameraPane() {
     : `<span class="lk-thumb" aria-hidden="true">${PHOTO_ICON}</span>`;
   return `<div class="lk-top"><button type="button" class="lk-round" data-close="camera" aria-label="Close the camera">✕</button>
       <span class="lk-pill">Scan a receipt</span><span class="lk-round lk-me" aria-hidden="true"><img src="img/icon-64.png" alt=""></span></div>
+    ${!w.entry && state.data && state.data.rewards ? `<div class="lk-streak">${streakChip(state.data.rewards.streak, false)}</div>` : ""}
     ${finderHtml()}
     ${w.entry ? "" : `<div class="lk-controls">
       <label class="lk-gallery" aria-label="Pick a photo or screenshot">${thumb}<input type="file" accept="image/*" id="lk-file" data-w-file hidden></label>
@@ -161,6 +163,7 @@ function historyPane() {
   }
   const month = first.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
   return `<div class="lk-top"><button type="button" class="lk-round" data-close="camera" aria-label="Close History">✕</button><span class="lk-pill">History</span><span class="lk-spacer" aria-hidden="true"></span></div>
+    ${data && data.rewards ? `<div class="lk-streak">${streakChip(data.rewards.streak)}</div>` : ""}
     <section class="lk-month"><h3>${escapeHtml(month)}</h3><div class="lk-grid">${cells.join("")}</div></section>
     <p class="lk-note">Days with payments this week show what you spent.</p>`;
 }

@@ -1,5 +1,6 @@
 import { escapeHtml, hk, humanize, shortDate } from "../format.js";
 import { shownPlaces, statusOf } from "../mapview.js";
+import { medalLine } from "../rewards.js";
 import { state } from "../store.js";
 
 function campusName() {
@@ -45,23 +46,28 @@ function budgetBlock(data) {
   const kinds = [data.budget.rangeRecords ? "menu" : "", data.budget.chainRecords > 0 ? "chain" : ""].filter(Boolean).join(" and ");
   const estimate = `<p class="fit-note">${kinds ? `${kinds[0].toUpperCase()}${kinds.slice(1)} prices: tap Source. ` : ""}Other places: Estimated - not a real menu price.</p>`;
   const legend = `<details class="legend-box"><summary>What the labels mean</summary><div class="legend">
-      <span><span class="badge status-fits">Fits</span>verified dish price within today's money</span>
-      <span><span class="badge status-range_fits">Fits (HK$a to b, menu)</span>the place's own menu range is within today's money</span>
-      <span><span class="badge status-chain_fits">Fits (chain price)</span>the chain's published meal prices are all within today's money</span>
+      <span><span class="badge status-fits">Fits</span>verified dish price within one meal's money</span>
+      <span><span class="badge status-range_fits">Fits (HK$a to b, menu)</span>the place's own menu range is within one meal's money</span>
+      <span><span class="badge status-chain_fits">Fits (chain price)</span>the chain's published meal prices are all within one meal's money</span>
       <span><span class="badge status-range_may">May fit (HK$a to b, menu)</span>menu range: the cheap end fits, the top does not</span>
       <span><span class="badge status-chain_tight">May fit (chain price)</span>the chain's cheaper meals fit, its dearer ones do not</span>
       <span><span class="badge status-range_over">Over (HK$a to b, menu)</span>menu range: even the cheap end is too much</span>
-      <span><span class="badge status-chain_over">Over (chain price)</span>even the chain's cheapest meal is above today's money</span>
+      <span><span class="badge status-chain_over">Over (chain price)</span>even the chain's cheapest meal is above one meal's money</span>
       <span><span class="badge status-estimate">May fit (estimate)</span>price range from the place type</span>
       <span><span class="badge status-unlikely">Likely over (estimate)</span>even the cheap end is too much</span>
-      <span><span class="badge status-over">Over budget</span>verified dish price above today's money</span>
+      <span><span class="badge status-over">Over budget</span>verified dish price above one meal's money</span>
     </div></details>`;
   if (left == null) {
     return `${estimate}<p class="fit-note">Set your weekly budget to compare.</p>${legend}`;
   }
-  const toggle = `<button type="button" id="fits-only" class="toggle${state.mapFitsOnly ? " on" : ""}" aria-pressed="${state.mapFitsOnly}">Could fit today's ${hk(Math.max(left, 0))}</button>`;
-  const why = left <= 0 ? `<p class="fit-note">Nothing left for food today, so nothing fits.</p>` : "";
-  return `<div class="fit-head">${toggle}</div>${why}${estimate}${legend}`;
+  // One meal is compared with one meal's share of today's food money, never the whole day.
+  const meal = data.budget.perMeal;
+  const meals = data.budget.mealsLeft;
+  const toggle = `<button type="button" id="fits-only" class="toggle${state.mapFitsOnly ? " on" : ""}" aria-pressed="${state.mapFitsOnly}">Could fit ${hk(Math.max(meal, 0))} a meal</button>`;
+  const share = left > 0
+    ? `<p class="fit-note meal-share">${hk(left)} left for food today, ${meals} ${meals === 1 ? "meal" : "meals"} to go: about ${hk(meal)} a meal.</p>`
+    : `<p class="fit-note">Nothing left for food today, so nothing fits.</p>`;
+  return `<div class="fit-head">${toggle}</div>${share}${estimate}${legend}`;
 }
 
 // The price on the grey line: a chain's published range, else the estimated range (marked).
@@ -109,10 +115,15 @@ function placeRow(place) {
   const meta = [humanize(place.detail) || "OpenStreetMap", `${place.distanceKm} km`, price]
     .filter(Boolean).join(" · ");
   const source = sourceLink(place);
+  // Shown for the place picked on the list or the map (mapview.selectPlace). Food only, with a budget.
+  const canLog = state.map.kind === "food" && state.view.ready;
+  const log = canLog
+    ? `<button type="button" class="ghost small log-meal" data-log-place="${escapeHtml(place.id)}"${place.id === state.selectedId ? "" : " hidden"}>Log a meal here</button>`
+    : "";
   return `<button type="button" class="place status-${status}${on}" data-key="pl-${escapeHtml(place.id)}" data-place="${escapeHtml(place.id)}" aria-pressed="${place.id === state.selectedId}">`
     + `<span class="dot status-${status}" aria-hidden="true"></span>`
     + `<span class="place-body"><span class="place-name">${escapeHtml(place.name)}</span>`
-    + `<span class="tag">${escapeHtml(meta)}</span>${badge}${why}</span></button>${source}`;
+    + `<span class="tag">${escapeHtml(meta)}</span>${badge}${why}</span></button>${log}${source}`;
 }
 
 export function mapScreen() {
@@ -139,6 +150,7 @@ export function mapScreen() {
     <div id="osm-map" role="region" aria-label="Map of places around ${escapeHtml(data.center.name || campusName())}"></div>
     <div class="source" id="map-source">${escapeHtml(sourceLabel(data))} · © OpenStreetMap contributors</div>
     ${budget}
+    ${data.kind === "food" ? medalLine() : ""}
     <div class="list-head"><h2 class="title">${count}</h2></div>
     <div class="list">${rows}</div>
     ${moreLayers()}`;

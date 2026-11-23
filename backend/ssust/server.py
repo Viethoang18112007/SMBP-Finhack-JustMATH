@@ -12,8 +12,10 @@ to the server log only, never to the client).
 """
 
 import json
+import re
 import socket
 import sys
+import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -49,9 +51,14 @@ SECURITY_HEADERS = (
 # The iOS app (Capacitor) loads its page from capacitor://localhost and calls the hosted API,
 # so /api/ answers that one origin with CORS headers. No other origin, no credentials, no static files.
 APP_ORIGINS = ("capacitor://localhost",)
+# Each iPhone app sends a random id of its own and gets its own live book (data/devices/<id>/).
+# Requests without it use the shared book, exactly as before. The app has no demo mode.
+DEVICE_HEADER = "X-SSUST-Device"
+DEVICE_ID = re.compile(r"[0-9a-f]{32}")
+MAX_DEVICES = 200
 CORS_PREFLIGHT = (
     ("Access-Control-Allow-Methods", "GET, POST"),
-    ("Access-Control-Allow-Headers", "Content-Type"),
+    ("Access-Control-Allow-Headers", f"Content-Type, {DEVICE_HEADER}"),
     ("Access-Control-Max-Age", "600"),
 )
 SERVER_ERROR = "Something went wrong on the server. Try again."
@@ -63,17 +70,34 @@ class BadRequest(ValueError):
     """The request itself is unusable (body, query or field types). Answered with a 400."""
 
 
+class TooManyDevices(RuntimeError):
+    """No room for another app device on this server. Answered with a 503."""
+
+
 class AppServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address, service, places_fetcher, quiet, public_hosts=()):
+    def __init__(self, address, service, places_fetcher, quiet, public_hosts=(), device_factory=None):
         self.service = service
+        self.device_factory = device_factory  # device id -> Service, for the iPhone app
+        self.devices = {}
+        self.devices_lock = threading.Lock()
         self.places_fetcher = places_fetcher
         self.quiet = quiet
         super().__init__(address, Handler)
         port = self.server_address[1]
         # public_hosts: exact host names a hosting proxy sends (serve.py); empty when run locally.
         self.trusted_hosts = frozenset({f"{HOST}:{port}", f"localhost:{port}", *public_hosts})
+
+    def device_service(self, device):
+        """The Service for one app device (its own live book), created the first time."""
+        with self.devices_lock:
+            service = self.devices.get(device)
+            if service is None:
+                if self.device_factory is None or len(self.devices) >= MAX_DEVICES:
+                    raise TooManyDevices("This server has no room for another phone right now.")
+                service = self.devices[device] = self.device_factory(device)
+            return service
 
     def shutdown_request(self, request):
         """Close gracefully: stop writing, then discard what the client still sends.
@@ -117,7 +141,12 @@ def make_server(data_dir, clock, port=0, places_fetcher=None, quiet=False, host=
             print(f"  {problem}", file=sys.stderr)
     service = Service(open_books(data_dir), clock, verified=records, chains=chains)
     fetcher = places.fetch_places if places_fetcher is None else places_fetcher
-    return AppServer((host, port), service, fetcher, quiet, tuple(public_hosts))
+    devices = Path(data_dir) / "devices"
+
+    def device_factory(device):
+        return Service(open_books(devices / device), clock, verified=records, chains=chains)
+
+    return AppServer((host, port), service, fetcher, quiet, tuple(public_hosts), device_factory)
 
 
 def _text(value, what):
@@ -188,6 +217,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error_json(400, str(exc), exc.details)
         except BadRequest as exc:
             self.send_error_json(400, str(exc))
+        except TooManyDevices as exc:
+            self.send_error_json(503, str(exc))
         except Exception:
             if not self.server.quiet:
                 traceback.print_exc(file=sys.stderr)
@@ -195,6 +226,20 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error_json(500, SERVER_ERROR)
             except OSError:
                 pass  # the client is gone
+
+    @property
+    def device(self):
+        """The app device id sent with this request, or None for the web app."""
+        device = self.headers.get(DEVICE_HEADER)
+        if device is not None and not DEVICE_ID.fullmatch(device):
+            raise BadRequest("Unknown app device.")
+        return device
+
+    @property
+    def service(self):
+        """The shared Service (web), or the device's own one (iPhone app)."""
+        device = self.device
+        return self.server.service if device is None else self.server.device_service(device)
 
     def do_GET(self):
         self.run(self.route_get)
@@ -241,11 +286,13 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(url.query, keep_blank_values=True)
         if path == "/api/state":
             week = query.get("week", [None])[0]
-            self.send_json(self.server.service.get_state(week))
+            self.send_json(self.service.get_state(week))
         elif path == "/api/places":
             self.get_places(query)
         elif path == "/api/insights":
-            self.send_json(self.server.service.insights())
+            self.send_json(self.service.insights())
+        elif path == "/api/feedback":
+            self.send_json(self.service.feedback())
         else:
             self.send_static(path)
 
@@ -263,6 +310,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/inbox/dismiss": self.post_inbox_dismiss,
             "/api/connected": self.post_connected,
             "/api/assistant/parse": self.post_parse,
+            "/api/feedback": self.post_feedback,
         }
         route = routes.get(path)
         if route is None:
@@ -300,12 +348,12 @@ class Handler(BaseHTTPRequestHandler):
         radius = query.get("radius", ["3"])[0]
         if kind not in places.KINDS or radius not in places.RADIUS_KM:
             raise BadRequest("Unknown map filter.")
-        self.send_json(self.server.service.places(kind, float(radius), self.server.places_fetcher))
+        self.send_json(self.service.places(kind, float(radius), self.server.places_fetcher))
 
     # connected payments (simulated in this demo): an inbox the student reviews
     def post_inbox(self, data):
         amount = _cents(data.get("amount"), "Enter an amount greater than zero.")
-        self.send_json(self.server.service.inbox_add(
+        self.send_json(self.service.inbox_add(
             _text(data.get("source"), "source"), amount, _text(data.get("merchant"), "merchant"),
             _text(data.get("card"), "card"), _text(data.get("externalId"), "external id")))
 
@@ -317,18 +365,18 @@ class Handler(BaseHTTPRequestHandler):
         return item_id
 
     def post_inbox_confirm(self, data):
-        self.send_json(self.server.service.inbox_confirm(
+        self.send_json(self.service.inbox_confirm(
             self._item_id(data), _text(data.get("category"), "category"),
             _optional_text(data.get("choice"), "cover"), _optional_text(data.get("requestId"), "request id")))
 
     def post_inbox_dismiss(self, data):
-        self.send_json(self.server.service.inbox_dismiss(self._item_id(data)))
+        self.send_json(self.service.inbox_dismiss(self._item_id(data)))
 
     def post_connected(self, data):
         on = data.get("on")
         if not isinstance(on, bool):
             raise BadRequest("Send on: true or false.")
-        self.send_json(self.server.service.set_connected(_text(data.get("source"), "source"), on))
+        self.send_json(self.service.set_connected(_text(data.get("source"), "source"), on))
 
     def post_receipt(self, data):
         """Find the total, merchant and fund in OCR text. Reads only: nothing is saved."""
@@ -336,17 +384,19 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(text, str):
             raise BadRequest("Send the receipt text.")
         try:
-            self.send_json(self.server.service.scan_receipt(text))
+            self.send_json(self.service.scan_receipt(text))
         except ValueError as exc:
             raise BadRequest(str(exc)) from None
 
     def post_campus(self, data):
-        self.send_json(self.server.service.set_campus(_text(data.get("campus"), "campus")))
+        self.send_json(self.service.set_campus(_text(data.get("campus"), "campus")))
 
     def post_mode(self, data):
         mode = _text(data.get("mode"), "mode")
         scenario = _optional_text(data.get("scenario"), "demo week")
-        self.send_json(self.server.service.set_mode(mode, scenario))
+        if self.device is not None and mode != "live":
+            raise BadRequest("The app has no demo mode: it always uses your own data.")
+        self.send_json(self.service.set_mode(mode, scenario))
 
     def post_settings(self, data):
         amounts = {}
@@ -355,20 +405,26 @@ class Handler(BaseHTTPRequestHandler):
             if amounts[fund] is None:
                 raise ServiceError(f"{money.FUND_NAMES[fund]}: enter an amount of 0 or more, like 120 or 45.50.",
                                    field=fund)
-        self.send_json(self.server.service.set_funds(amounts))
+        self.send_json(self.service.set_funds(amounts))
 
     def post_undo(self, data):
         payment_id = data.get("id")
         if type(payment_id) is not int:
             raise BadRequest("Unknown payment.")
-        self.send_json(self.server.service.undo_payment(payment_id))
+        self.send_json(self.service.undo_payment(payment_id))
 
     def post_parse(self, data):
-        self.send_json(self.server.service.parse_entry(_text(data.get("text"), "entry")))
+        self.send_json(self.service.parse_entry(_text(data.get("text"), "entry")))
 
     def post_payment(self, data):
         amount = _cents(data.get("amount"), "Enter an amount greater than zero.")
         category = _text(data.get("category"), "category")
         choice = _optional_text(data.get("choice"), "cover")
         request_id = _optional_text(data.get("requestId"), "request id")
-        self.send_json(self.server.service.add_payment(amount, category, data.get("note", ""), choice, request_id))
+        place = data.get("place")
+        if place is not None and not isinstance(place, dict):
+            raise BadRequest("Unknown place.")
+        self.send_json(self.service.add_payment(amount, category, data.get("note", ""), choice, request_id, place))
+
+    def post_feedback(self, data):
+        self.send_json(self.service.add_feedback(data.get("rating"), data.get("text", "")))

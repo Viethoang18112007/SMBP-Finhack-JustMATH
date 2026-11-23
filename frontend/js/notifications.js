@@ -11,6 +11,7 @@
 //   an exact time with fire(kind), so the demo is deterministic.
 
 import { registerOverlay } from "./closers.js";
+import { NATIVE } from "./config.js";
 import { hkTime, isFramed, openApp } from "./device.js";
 import { escapeHtml, hk } from "./format.js";
 import { paymentNote } from "./inbox.js";
@@ -101,7 +102,8 @@ const ORDER = ["daily", "weekClosed", "fundEmpty", "tooFast", "payment"];
 
 // After every render: run the triggers (unless the auto-play drives them).
 export function checkNotifications() {
-  if (!auto || !state.data || state.data.past) return;
+  // The iPhone app has no simulated phone: no fake banners over the real one.
+  if (NATIVE || !auto || !state.data || state.data.past) return;
   const seen = seenKeys();
   for (const kind of ORDER) {
     for (const note of RULES[kind](state.data)) {

@@ -1,13 +1,16 @@
 // JSON calls to the SSUST server (same origin on the web, API_BASE in the iOS shell).
 
-import { apiUrl } from "./config.js";
+import { NATIVE, apiUrl, deviceId } from "./config.js";
 
 export async function api(path, body) {
   let res;
+  const headers = body ? { "Content-Type": "application/json" } : {};
+  // The iPhone app: this phone's own data on the server (the web app sends nothing extra).
+  if (NATIVE) headers["X-SSUST-Device"] = deviceId();
   try {
     res = await fetch(apiUrl(path), {
       method: body ? "POST" : "GET",
-      headers: body ? { "Content-Type": "application/json" } : {},
+      headers,
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (err) {

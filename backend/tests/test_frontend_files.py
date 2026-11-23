@@ -1261,6 +1261,6 @@ class Declutter(unittest.TestCase):
     def test_settings_budget_and_mode_first(self):
         settings = (JS_ROOT / "screens" / "settings.js").read_text(encoding="utf-8")
         tail = settings[settings.rindex("return `"):]
-        order = [tail.index(x) for x in ("budget-title", "${modeCard}", "${connectedCard()}", "${display}", "${help}")]
+        order = [tail.index(x) for x in ("${budgetCard}", "${modeCard}", "${connectedCard()}", "${display}", "${help}")]
         self.assertEqual(order, sorted(order))
         self.assertIn('<details class="card fold" id="connected-card">', (JS_ROOT / "inbox.js").read_text(encoding="utf-8"))

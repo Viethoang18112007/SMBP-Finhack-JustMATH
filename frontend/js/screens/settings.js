@@ -1,4 +1,5 @@
 import { budgetFields } from "../budget.js";
+import { NATIVE } from "../config.js";
 import { state } from "../store.js";
 import { connectedCard, tapButtons } from "../inbox.js";
 
@@ -42,6 +43,20 @@ export function settingsScreen(view) {
       <div class="mt-12"><div class="label">Simulate a tap</div>${tapButtons("help")}</div>
       ${demoWeeks ? `<div class="mt-12">${demoWeeks}</div>` : ""}
     </details>`;
+  const budgetCard = `<section class="card" aria-labelledby="budget-title">
+      <h2 class="title" id="budget-title">Weekly budget</h2>
+      <p class="sub">${prefill ? "Last week's amounts are filled in. Check them, then save." : effect}</p>
+      ${budgetFields(view)}
+      <button class="primary" id="apply" type="button">Save weekly budget</button>
+    </section>`;
+  // The iPhone app has no demo: only your own data, no sample weeks, tour or simulated payments.
+  if (NATIVE) {
+    return `${budgetCard}
+    <section class="card" aria-labelledby="about-title">
+      <h2 class="title" id="about-title">Your data</h2>
+      <p class="sub">Your budget and payments are kept on the SSUST server for this phone only.</p>
+    </section>`;
+  }
   const phone = state.phoneView;
   const display = `<details class="card fold">
       <summary><span class="title" id="display-title">Display</span></summary>
@@ -50,12 +65,7 @@ export function settingsScreen(view) {
       </button>
       <p class="hint">Wide screens only: the app inside a simulated phone.</p>
     </details>`;
-  return `<section class="card" aria-labelledby="budget-title">
-      <h2 class="title" id="budget-title">Weekly budget</h2>
-      <p class="sub">${prefill ? "Last week's amounts are filled in. Check them, then save." : effect}</p>
-      ${budgetFields(view)}
-      <button class="primary" id="apply" type="button">Save weekly budget</button>
-    </section>
+  return `${budgetCard}
     ${modeCard}
     ${connectedCard()}
     ${display}

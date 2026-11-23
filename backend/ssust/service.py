@@ -8,9 +8,10 @@ and keeps its own database file. Errors the user can fix raise ServiceError.
 """
 
 import json
+import re
 from datetime import datetime, timezone
 
-from . import assistant, cooked, fit, money, places, prices, projection, ranges, receipt
+from . import assistant, cooked, fit, money, places, prices, projection, ranges, receipt, rewards
 from .dates import FixedClock, monday_of, week_dates
 from .store import INBOX_SOURCES, REQUEST_ID
 from .validate import MAX_CENTS, clean_note
@@ -20,6 +21,8 @@ CHOICES = ("snack", money.FLEX, "savings")
 # Older clients sent this name for the Experience/Development cover; it is still accepted.
 LEGACY_CHOICES = {"borrow": money.FLEX}
 CUSTOM = "custom"
+PLACE_ID = re.compile(r"(node|way|relation)/[0-9]{1,20}")
+FEEDBACK_CHARS = 500
 
 
 class ServiceError(ValueError):
@@ -53,6 +56,31 @@ def _check_not_below_spent(opening, payments):
                 f"{name} already has {money.hk(spent[fund])} spent this week. "
                 f"Set it to at least {money.hk(spent[fund])}.",
                 field=fund, minimum=spent[fund])
+
+
+def _place(place):
+    """A map place sent with a payment ({"id": "node/123", "name": ...}), checked, or None."""
+    if place is None:
+        return None
+    if not isinstance(place, dict) or not isinstance(place.get("id"), str) or not PLACE_ID.fullmatch(place["id"]):
+        raise ServiceError("Unknown place.")
+    try:
+        name = clean_note(place.get("name"))
+    except ValueError:
+        raise ServiceError("Unknown place.") from None
+    if not name:
+        raise ServiceError("Unknown place.")
+    return {"id": place["id"], "name": name}
+
+
+def _feedback_text(text):
+    """Printable text and line breaks only, no angle brackets, trimmed, at most FEEDBACK_CHARS."""
+    if not isinstance(text, str):
+        raise ServiceError("Feedback must be text.")
+    cleaned = "".join(ch for ch in text if (ch.isprintable() or ch == "\n") and ch not in "<>").strip()
+    if len(cleaned) > FEEDBACK_CHARS:
+        raise ServiceError(f"Keep it under {FEEDBACK_CHARS} characters.")
+    return cleaned
 
 
 def _campus(s):
@@ -127,7 +155,30 @@ class Service:
         state["connected"] = _connected(s)
         state["campus"] = _campus(s)
         state["campuses"] = [{"id": c["id"], "name": c["name"]} for c in places.CAMPUSES.values()]
+        state["rewards"] = self._rewards(s, today, state["savingsPot"]["total"]) if current else None
         return state
+
+    @staticmethod
+    def _rewards(s, today, savings):
+        """The streak, last week's stars, campus medals and badges for the current week's state."""
+        current = monday_of(today)
+        weeks = [w for w in s.weeks() if w < current]  # weeks that have ended, oldest first
+        stars = []
+        for week in weeks:
+            rated = rewards.week_stars(s.get_week(week), s.payments(week))
+            if rated:
+                stars.append({**rated, "weekStart": week})
+        streak = rewards.streak(s.payment_dates(), today)
+        medals = rewards.medals(s.visit_counts(), [(c["id"], c["name"]) for c in places.CAMPUSES.values()])
+        last = stars[-1] if stars and stars[-1]["weekStart"] == weeks[-1] else None
+        return {
+            "streak": streak,
+            "lastWeek": last,
+            "medals": medals,
+            "badges": rewards.badges(payments=s.payment_count(), budget_weeks=len(s.weeks()),
+                                     best_streak=streak["best"], stars=[r["stars"] for r in stars],
+                                     savings=savings, medals=medals),
+        }
 
     def _inbox(self, s):
         """Pending incoming payments, each with the fund to pre-select: the last one used at that
@@ -245,9 +296,13 @@ class Service:
         if kind != "food":
             return data
         remaining = state["view"]["todayRemaining"]
+        clock = self._demo_clock if mode == "demo" else self._live_clock
+        meals = fit.meals_left(clock.hour())
+        meal = fit.per_meal(remaining, meals)
         data = dict(data)
-        data["places"] = fit.rank_places(data["places"], remaining, self._verified, self._ranges, self._chains)
-        data["budget"] = {"remaining": remaining, "bands": fit.bands_payload(), "verifiedRecords": len(self._verified),
+        data["places"] = fit.rank_places(data["places"], meal, self._verified, self._ranges, self._chains)
+        data["budget"] = {"remaining": remaining, "mealsLeft": meals, "perMeal": meal,
+                          "bands": fit.bands_payload(), "verifiedRecords": len(self._verified),
                           "rangeRecords": len(self._ranges), "chainRecords": len(self._chains)}
         return data
 
@@ -377,7 +432,20 @@ class Service:
             s.void_payment(payment_id)
             return {"undone": payment, "state": self._build(s, mode, today, week)}
 
-    def add_payment(self, amount, category, note="", choice=None, request_id=None):
+    # feedback about the app
+    def add_feedback(self, rating, text):
+        if type(rating) is not int or not 1 <= rating <= 5:
+            raise ServiceError("Pick 1 to 5 stars.")
+        text = _feedback_text(text)
+        with self._books[self.mode()].session(write=True) as s:
+            s.add_feedback(rating, text)
+        return self.feedback()
+
+    def feedback(self):
+        with self._books[self.mode()].session() as s:
+            return {"feedback": s.feedback()}
+
+    def add_payment(self, amount, category, note="", choice=None, request_id=None, place=None):
         """Save a payment dated today, or ask which cover to use first.
 
         Returns {"needsConfirm": True, "level", "options", "state"} when a gap
@@ -403,6 +471,7 @@ class Service:
             raise ServiceError("Unknown cover.")
         if request_id is not None and not (isinstance(request_id, str) and REQUEST_ID.fullmatch(request_id)):
             raise ServiceError("Bad request id.")
+        place = _place(place)
         mode = self.mode()
         today = self._today(mode)
         week = monday_of(today)
@@ -438,6 +507,11 @@ class Service:
                 "from": taken,
                 "uncovered": uncovered,
             }, request_id=request_id)
+            if place is not None:
+                # It counts for the campus medal when it fit today's food money (no cover needed).
+                left = state["view"]["todayRemaining"]
+                within = level == 0 and uncovered == 0 and left is not None and amount <= left
+                s.add_visit(payment_id, state["campus"], place["id"], place["name"], within)
             after = self._build(s, mode, today, week)
             saved = next(p for p in after["payments"] if p["id"] == payment_id)
             return {"needsConfirm": False, "level": level, "payment": saved, "state": after}

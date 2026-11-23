@@ -7,6 +7,7 @@ import { projectionCard } from "./projection.js";
 import { tanksHtml } from "./tanks.js";
 import { reviewCard } from "../inbox.js";
 import { insightsCard } from "./insights.js";
+import { rewardsStrip } from "../rewards.js";
 
 const FUND_ORDER = ["main", "snack", "fixed", "experience", "development", "savings"];
 // The fund bar colour follows the tank tone: amber from 50% down, red under 20%.
@@ -109,6 +110,7 @@ export function todayScreen(view) {
       <div class="bar" aria-hidden="true"><span data-bar="today" data-ratio="${ratio}" data-tone="${tone}"></span></div>
       <div class="hero-foot"><span>Spent <strong class="num" data-count="spent" data-cents="${view.spentToday}">${hk(view.spentToday)}</strong> of ${hk(view.allowance)}</span><span>Tomorrow <strong class="num">${hk(view.tomorrow)}</strong></span></div>
     </section>
+    ${rewardsStrip()}
     ${reviewCard()}
     ${cookedCard(state.data.cooked)}
     ${projectionCard(state.data.projection, false, state.data.cooked && state.data.cooked.ready ? state.data.cooked.zero : undefined)}

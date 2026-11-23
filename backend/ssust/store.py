@@ -20,7 +20,7 @@ from .dates import parse_day, week_dates
 from .money import CATEGORIES, FUNDS
 from .validate import MAX_CENTS
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 BOOKS = ("live", "demo")
 MODES = ("live", "demo")
 LIVE_FILE = "ssust.db"
@@ -71,6 +71,15 @@ _SCHEMA_V4 = [
     "payment_id INTEGER)",
     "CREATE INDEX inbox_by_status ON inbox (status, id)",
     "CREATE TABLE merchant_funds (merchant TEXT PRIMARY KEY, fund TEXT NOT NULL)",
+]
+
+# Version 5: a meal logged at a map place (one row per payment; `within` = it fit that day's food
+# money, which is what the campus medals count), and the app feedback people send.
+_SCHEMA_V5 = [
+    "CREATE TABLE visits (payment_id INTEGER PRIMARY KEY, campus TEXT NOT NULL, place_id TEXT NOT NULL, "
+    "name TEXT NOT NULL, within INTEGER NOT NULL CHECK (within IN (0, 1)))",
+    "CREATE TABLE feedback (id INTEGER PRIMARY KEY, rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5), "
+    "text TEXT NOT NULL, created_at TEXT NOT NULL)",
 ]
 
 
@@ -133,6 +142,10 @@ class Store:
             for statement in _SCHEMA_V4:
                 con.execute(statement)
             con.execute("PRAGMA user_version = 4")
+        if version < 5:
+            for statement in _SCHEMA_V5:
+                con.execute(statement)
+            con.execute("PRAGMA user_version = 5")
 
     @contextmanager
     def _transaction(self, write):
@@ -365,6 +378,43 @@ class Session:
             "INSERT INTO merchant_funds (merchant, fund) VALUES (?, ?) "
             "ON CONFLICT(merchant) DO UPDATE SET fund = excluded.fund", (_merchant_key(merchant), fund))
 
+    def payment_dates(self):
+        """Every day with at least one payment that still counts, oldest first."""
+        rows = self._con.execute("SELECT DISTINCT date FROM payments WHERE voided_at IS NULL ORDER BY date")
+        return [row[0] for row in rows]
+
+    def payment_count(self):
+        return self._con.execute("SELECT COUNT(*) FROM payments WHERE voided_at IS NULL").fetchone()[0]
+
+    # meals logged at a place (campus medals)
+    def add_visit(self, payment_id, campus, place_id, name, within):
+        """Record that payment `payment_id` was a meal at a map place. Once per payment."""
+        self._writing()
+        self._con.execute(
+            "INSERT OR IGNORE INTO visits (payment_id, campus, place_id, name, within) VALUES (?, ?, ?, ?, ?)",
+            (payment_id, campus, place_id, name, 1 if within else 0))
+
+    def visit_counts(self):
+        """{campus: different places with a meal that fit that day's money}, undone payments left out."""
+        rows = self._con.execute(
+            "SELECT v.campus, COUNT(DISTINCT v.place_id) FROM visits v JOIN payments p ON p.id = v.payment_id "
+            "WHERE v.within = 1 AND p.voided_at IS NULL GROUP BY v.campus")
+        return {campus: count for campus, count in rows}
+
+    # feedback about the app
+    def add_feedback(self, rating, text, created_at=None):
+        self._writing()
+        stamp = created_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
+        cursor = self._con.execute("INSERT INTO feedback (rating, text, created_at) VALUES (?, ?, ?)",
+                                   (rating, text, stamp))
+        return cursor.lastrowid
+
+    def feedback(self, limit=20):
+        """The latest feedback, newest first."""
+        rows = self._con.execute("SELECT id, rating, text, created_at FROM feedback ORDER BY id DESC LIMIT ?",
+                                 (limit,))
+        return [{"id": r[0], "rating": r[1], "text": r[2], "createdAt": r[3]} for r in rows]
+
     # demo
     def reset(self):
         """Delete every week and payment. Only the demo book can be reset."""
@@ -375,3 +425,5 @@ class Session:
         self._con.execute("DELETE FROM weeks")
         self._con.execute("DELETE FROM inbox")
         self._con.execute("DELETE FROM merchant_funds")
+        self._con.execute("DELETE FROM visits")
+        self._con.execute("DELETE FROM feedback")

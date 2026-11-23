@@ -221,12 +221,29 @@ function savedDirect(data) {
   saved(data, { showNotice: data.level === 1, tankFlow: flowOf(data.payment) });
 }
 
+// Map: "Log a meal here" opens Add payment for that place (Main meals, its name as the note).
+// Saved as a normal payment; the place goes with it for the campus medal.
+export function logMealAt(placeId) {
+  const place = state.map && state.map.places.find((p) => p.id === placeId);
+  if (!place) return;
+  state.draft = { amount: "", category: "main", note: place.name.slice(0, 40), place: { id: place.id, name: place.name.slice(0, 40) } };
+  state.scan = null;
+  state.attempt = null;
+  state.error = "";
+  state.sheet = null;
+  state.undoId = null;
+  state.adding = true;
+  render();
+  document.getElementById("amount")?.focus();
+}
+
 export async function onSave() {
   if (state.saving) return;
   const raw = document.getElementById("amount").value;
   const note = document.getElementById("note").value.trim();
   const category = state.draft.category;
-  state.draft = { amount: raw, category, note };
+  const place = state.draft.place || null;
+  state.draft = { amount: raw, category, note, place };
   const cents = parseAmount(raw);
   if (cents == null) {
     state.error = "Enter an amount above HK$0, like 48 or 12.50.";
@@ -239,7 +256,9 @@ export async function onSave() {
   state.error = "";
   render();
   try {
-    const data = await api("/api/payments", { amount: raw, category, note, requestId });
+    const body = { amount: raw, category, note, requestId };
+    if (place) body.place = place; // a meal logged from the map (campus medal)
+    const data = await api("/api/payments", body);
     state.saving = false;
     if (data.needsConfirm) {
       state.sheet = {
@@ -254,6 +273,7 @@ export async function onSave() {
         amountRaw: raw,
         note,
         requestId,
+        place,
       };
       state.data = data.state;
       state.view = data.state.view;
@@ -308,6 +328,7 @@ export async function commit(pending, choice) {
         note: pending.note,
         choice,
         requestId: pending.requestId,
+        place: pending.place || null,
       });
     state.saving = false;
     saved(data, { showNotice: false, tankFlow: flowOf(data.payment) });
@@ -490,4 +511,40 @@ export async function quickAdd({ amount, category, note }) {
   if (state.sheet) return "confirm";
   if (state.adding && state.error) return state.error;
   return "saved";
+}
+
+// Feedback tab: load the latest feedback, then send stars and words.
+export async function loadFeedback() {
+  try {
+    const data = await api("/api/feedback");
+    state.feedback.list = data.feedback;
+  } catch (err) {
+    state.feedback.list = [];
+    state.feedback.error = err.message;
+  }
+  if (state.screen === "feedback") render();
+}
+
+export async function sendFeedback() {
+  const f = state.feedback;
+  if (f.sending) return;
+  const box = document.getElementById("feedback-text");
+  f.text = box ? box.value : f.text;
+  if (!f.rating) {
+    f.error = "Tap 1 to 5 stars first.";
+    render();
+    return;
+  }
+  f.sending = true;
+  f.error = "";
+  f.sent = false;
+  render();
+  try {
+    const data = await api("/api/feedback", { rating: f.rating, text: f.text });
+    Object.assign(f, { list: data.feedback, rating: 0, text: "", sent: true });
+  } catch (err) {
+    f.error = err.fromServer ? err.message : "Could not send it. Check your connection and try again.";
+  }
+  f.sending = false;
+  render();
 }

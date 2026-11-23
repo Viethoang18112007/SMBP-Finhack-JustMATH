@@ -44,6 +44,28 @@ def with_fit(places, remaining):
     return out
 
 
+# The map compares one meal with one meal's share of today's food money (food left today divided
+# by the meals still to come), never with the whole day: a HK$130 lunch would "fit" HK$140 and
+# leave HK$10 for dinner. Hours are Hong Kong time.
+def meals_left(hour):
+    """Meals still to come today: 3 before 11:00, 2 before 16:00, then 1 (dinner)."""
+    if hour < 11:
+        return 3
+    if hour < 16:
+        return 2
+    return 1
+
+
+def per_meal(remaining, meals):
+    """One meal's share of `remaining` cents, or None with no budget. Nothing to share when <= 0."""
+    if remaining is None:
+        return None
+    if remaining <= 0:
+        return remaining
+    from .money import round_div
+    return round_div(remaining, meals)
+
+
 def bands_payload():
     """The band table for the client: {"cheap": {"min": 1, "max": 5000}, ...}."""
     return {band: {"min": low, "max": high} for band, (low, high) in BANDS.items()}

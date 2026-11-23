@@ -356,34 +356,37 @@ class PlacesFit(ServiceTest):
         self.assertEqual(data["source"], "snapshot")
         self.assertEqual(data["center"], places.CAMPUSES["hkust"])
         self.assertEqual(data["budget"]["remaining"], 14000)
+        # One meal is compared with one meal's share: demo noon, lunch and dinner to go.
+        self.assertEqual((data["budget"]["mealsLeft"], data["budget"]["perMeal"]), (2, 7000))
         self.assertEqual(data["budget"]["bands"], {
             "cheap": {"min": 1, "max": 5000},
             "normal": {"min": 5001, "max": 12000},
             "expensive": {"min": 12001, "max": None},
         })
         fits = [p["fit"] for p in data["places"]]
-        self.assertEqual(sorted(f or "none" for f in fits), self.expected_fits("hkust", 14000))
-        self.assertNotIn("over", fits)
+        self.assertEqual(sorted(f or "none" for f in fits), self.expected_fits("hkust", 7000))
         self.assertNotIn(None, fits)
-        order = {"fits": 0, "tight": 1, "over": 2}
-        self.assertEqual(fits, sorted(fits, key=order.get))
+        # Sorted by the honest status (menu, chain, estimate...), not by the estimate band.
+        ranks = [fit._ORDER[p["status"]] for p in data["places"]]
+        self.assertEqual(ranks, sorted(ranks))
 
     def test_chosen_campus_is_used(self):
         self.svc.set_campus("hku")
         data = self.svc.places("food", 3.0, no_fetch)
         self.assertEqual(data["center"], places.CAMPUSES["hku"])
         fits = sorted(p["fit"] or "none" for p in data["places"])
-        self.assertEqual(fits, self.expected_fits("hku", 14000))
+        self.assertEqual(fits, self.expected_fits("hku", 7000))
 
     def test_a_payment_changes_the_fit(self):
-        self.svc.add_payment(4800, "main", "lunch")  # HK$92 left
+        self.svc.add_payment(4800, "main", "lunch")  # HK$92 left today, HK$46 a meal
         data = self.svc.places("food", 3.0, no_fetch)
         self.assertEqual(data["budget"]["remaining"], 9200)
+        self.assertEqual(data["budget"]["perMeal"], 4600)
         by_price = {}
         for place in data["places"]:
             by_price.setdefault(place["price"], set()).add(place["fit"])
-        self.assertEqual(by_price.get("cheap", {"fits"}), {"fits"})
-        self.assertEqual(by_price.get("normal", {"tight"}), {"tight"})
+        self.assertEqual(by_price.get("cheap", {"tight"}), {"tight"})
+        self.assertEqual(by_price.get("normal", {"over"}), {"over"})
         self.assertEqual(by_price.get("expensive", {"over"}), {"over"})
         self.assertIn("normal", by_price)
 

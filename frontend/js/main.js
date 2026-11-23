@@ -1,6 +1,6 @@
 // Entry point: the static shell (header, Add button, toast, bottom navigation) and the first load.
 
-import { closeAdd, closeSheet, loadMap, openAdd, simulateTap, switchMode, undoPayment } from "./actions.js";
+import { closeAdd, closeSheet, loadFeedback, loadMap, openAdd, simulateTap, switchMode, undoPayment } from "./actions.js";
 import { api } from "./api.js";
 import { registerOverlay } from "./closers.js";
 import { recordMode, showRecordHint } from "./cursor.js";
@@ -10,6 +10,14 @@ import { render, renderToast } from "./render.js";
 import { trapFocus } from "./sheet.js";
 import { hideOffer, maybeOfferTour, recoverInterruptedAutoplay, startAutoplay, startGuided } from "./tour.js";
 import { applyState, state } from "./store.js";
+
+// The iPhone app: no phone frame, no demo or tour, room for the status bar, no double-tap zoom.
+// The web page keeps its own viewport (index.html), so people can still zoom there.
+if (NATIVE) {
+  document.documentElement.classList.add("native");
+  document.querySelector('meta[name="viewport"]')?.setAttribute("content",
+    "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover");
+}
 
 document.getElementById("nav").addEventListener("click", (event) => {
   const btn = event.target.closest("button");
@@ -26,6 +34,11 @@ document.getElementById("nav").addEventListener("click", (event) => {
   else {
     state.screen = btn.dataset.screen;
     state.mapLoading = false;
+    if (state.screen === "feedback") {
+      state.feedback.sent = false;
+      state.feedback.list = null;
+      loadFeedback();
+    }
     render();
   }
 });
@@ -120,7 +133,7 @@ api("/api/state").then(async (data) => {
   applyState(data);
   render();
   applyFrame();
-  await recoverInterruptedAutoplay();
+  if (!NATIVE) await recoverInterruptedAutoplay();
   if (recordMode()) {
     // ?record=1: a clean screen for the video. Space starts the demo, Esc stops it.
     document.body.classList.add("record-mode");
@@ -131,7 +144,7 @@ api("/api/state").then(async (data) => {
     take();
     return;
   }
-  maybeOfferTour();
+  if (!NATIVE) maybeOfferTour();
 }).catch(() => {
   document.getElementById("screen").innerHTML = NATIVE ? NATIVE_UNREACHABLE : WEB_UNREACHABLE;
 });

@@ -89,6 +89,7 @@ export function selectPlace(id) {
   document.querySelectorAll("[data-place]").forEach((el) => {
     el.classList.toggle("on", el.dataset.place === id);
   });
+  document.querySelectorAll("[data-log-place]").forEach((el) => { el.hidden = el.dataset.logPlace !== id; });
   document.getElementById("osm-map")?.scrollIntoView({ block: "nearest" });
   const marker = markers.get(id);
   const place = placeById(id);

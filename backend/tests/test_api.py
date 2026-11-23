@@ -371,12 +371,14 @@ class Places(ApiTest):
         self.demo()
         data = self.call("GET", "/api/places?kind=food&radius=3")
         self.assertEqual(data["budget"]["remaining"], 14000)
-        expected = sorted(fit.fit_for(p["price"], 14000) for p in places.snapshot_places("food", 3.0)["places"])
+        self.assertEqual(data["budget"]["perMeal"], 7000)
+        expected = sorted(fit.fit_for(p["price"], 7000) for p in places.snapshot_places("food", 3.0)["places"])
         self.assertEqual(sorted(p["fit"] for p in data["places"]), expected)
         self.assertTrue(all(p["priceSource"] in ("tag", "type") for p in data["places"]))
         self.call("POST", "/api/payments", {"amount": "48", "category": "main"})
         after = self.call("GET", "/api/places?kind=food&radius=3")
         self.assertEqual(after["budget"]["remaining"], 9200)
+        self.assertEqual(after["budget"]["perMeal"], 4600)
         self.assertNotEqual([p["fit"] for p in after["places"]], [p["fit"] for p in data["places"]])
 
     def test_shops_have_no_fit(self):
