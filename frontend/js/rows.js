@@ -49,29 +49,57 @@ export function mergeWords(base, extra) {
   return out;
 }
 
-// The text of the words, one line per visual row: a word joins a row when its centre, straightened by
-// the tilt `slope`, is within `tolerance` x the usual word height of the row's centre. Rows go top to
-// bottom, words left to right.
-export function rebuildRows(words, slope = 0, tolerance = 0.5) {
+// How far apart (centres, straightened) two words can be, as a share of the larger of their two
+// heights: within JOIN they share a row; a row never holds two words further apart than APART.
+const JOIN = 0.6;
+const APART = 1.0;
+
+// Visual rows, top to bottom: [{ words, top, bottom }], each word { text, x0, cy, h, top, bottom }.
+// Each pair of words is judged by its own heights (a big printed "Amount" and its bigger price are one
+// row even when their centres differ by most of a normal line). Pairs are joined closest first, and two
+// rows never join if any of their words would end up more than APART apart, so a big price is never
+// pulled into the row above it.
+function groupRows(words, slope, join) {
   const items = (words || []).filter(usable).map((w) => {
-    const cx = (w.x0 + w.x1) / 2;
-    return { text: w.text.trim(), x0: w.x0, cy: (w.y0 + w.y1) / 2 - slope * cx, h: Math.max(1, w.y1 - w.y0) };
+    const shift = slope * ((w.x0 + w.x1) / 2);
+    return { text: w.text.trim(), x0: w.x0, cy: (w.y0 + w.y1) / 2 - shift, h: Math.max(1, w.y1 - w.y0),
+      top: w.y0 - shift, bottom: w.y1 - shift };
   });
-  if (!items.length) return "";
-  const heights = items.map((w) => w.h).sort((a, b) => a - b);
-  const limit = tolerance * heights[Math.floor(heights.length / 2)];
-  items.sort((a, b) => a.cy - b.cy);
-  const rows = [];
-  for (const item of items) {
-    const row = rows[rows.length - 1];
-    if (row && Math.abs(item.cy - row.cy) <= limit) {
-      row.words.push(item);
-      row.cy = row.words.reduce((s, w) => s + w.cy, 0) / row.words.length;
-    } else {
-      rows.push({ cy: item.cy, words: [item] });
+  const gap = (a, b) => Math.abs(a.cy - b.cy) / Math.max(a.h, b.h);
+  const pairs = [];
+  for (let i = 0; i < items.length; i += 1) {
+    for (let j = i + 1; j < items.length; j += 1) {
+      const g = gap(items[i], items[j]);
+      if (g <= join) pairs.push([g, i, j]);
     }
   }
-  return rows.map((row) => row.words.sort((a, b) => a.x0 - b.x0).map((w) => w.text).join(" ")).join("\n");
+  pairs.sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]);
+  const rowOf = items.map((_, i) => [i]);
+  for (const [, i, j] of pairs) {
+    const a = rowOf[i];
+    const b = rowOf[j];
+    if (a === b || a.some((p) => b.some((q) => gap(items[p], items[q]) > APART))) continue;
+    for (const k of b) {
+      a.push(k);
+      rowOf[k] = a;
+    }
+  }
+  return [...new Set(rowOf)]
+    .map((row) => {
+      const ws = row.map((k) => items[k]).sort((a, b) => a.x0 - b.x0);
+      return { words: ws, cy: ws.reduce((s, w) => s + w.cy, 0) / ws.length,
+        top: Math.min(...ws.map((w) => w.top)), bottom: Math.max(...ws.map((w) => w.bottom)) };
+    })
+    .sort((a, b) => a.cy - b.cy);
+}
+
+const rowText = (row) => row.words.map((w) => w.text).join(" ");
+
+// The text of the words, one line per visual row: two words share a row when their centres, straightened
+// by the tilt `slope`, are within `tolerance` x the larger of their two heights. Rows go top to bottom,
+// words left to right.
+export function rebuildRows(words, slope = 0, tolerance = JOIN) {
+  return groupRows(words, slope, tolerance).map(rowText).join("\n");
 }
 
 // Lines read by the iPhone's own text recognition ({ text, x, y, w, h }, the box from 0 to 1, from the
@@ -83,12 +111,47 @@ export function wordsFromLines(lines, size = 1000) {
     .filter(usable);
 }
 
+// A row that is only a price ("$1,032.0", "HK$ 38", "-$0.80"), a row with an amount in it, and the
+// total labels the server looks for (receipt.py). A total label left without a price on its own row is
+// marked with NO_PRICE, so "What the phone read" shows where the rows could not be paired.
+const PRICE_ONLY = /^\s*-?\s*(?:HK\s?\$|HKD|\$)?\s*-?\s*\d[\d,]*(?:\s?[.,]\s?\d{1,2})?\s*(?:\$HK|HKD)?\s*$/i;
+const HAS_AMOUNT = /\d\s?[.,]\s?\d{1,2}(?!\d)|(?:\$|HKD)\s*\d|\d\s*(?:\$HK|HKD)|\d\s*$/i;
+const TOTAL_LABEL = /\b(?:sub ?-?total|total|amount|amt|payable|due|service)\b|小計|小计|合計|合计|總計|总计|總數|總額|总额|應付|应付|金額|金额/i;
+export const NO_PRICE = "(no price on this row)";
+
+const overlapOf = (a, b) => Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+
+// A price-only row joins a row beside it that has no amount when their boxes overlap vertically: the
+// same printed line, read as two pieces a little more than JOIN apart.
+function pairPrices(rows) {
+  const out = rows.map((row) => ({ ...row, words: [...row.words] }));
+  for (let i = 0; i < out.length; i += 1) {
+    const price = out[i];
+    if (!price || !PRICE_ONLY.test(rowText(price))) continue;
+    const near = [out[i - 1], out[i + 1]]
+      .filter((row) => row && !HAS_AMOUNT.test(rowText(row)) && overlapOf(row, price) > 0)
+      .sort((a, b) => overlapOf(b, price) - overlapOf(a, price));
+    if (!near.length) continue;
+    const label = near[0];
+    label.words = [...label.words, ...price.words].sort((a, b) => a.x0 - b.x0);
+    label.top = Math.min(label.top, price.top);
+    label.bottom = Math.max(label.bottom, price.bottom);
+    out[i] = null;
+  }
+  return out.filter(Boolean);
+}
+
 // The text of scanned pages (each a list of lines as above), one visual row per line, so a label and
-// its amount read as two pieces ("Amount", "$1,032.0") end up on one line. The phone's scan screen
-// already straightens the page, so no tilt is applied.
+// its amount read as two pieces ("Amount", "$1,032.0") end up on one line, even when the amount is
+// printed bigger. The phone's scan screen already straightens the page, so no tilt is applied.
 export function textOfPages(pages) {
   return (Array.isArray(pages) ? pages : [])
-    .map((lines) => rebuildRows(wordsFromLines(lines)))
+    .map((lines) => pairPrices(groupRows(wordsFromLines(lines), 0, JOIN))
+      .map((row) => {
+        const text = rowText(row);
+        return TOTAL_LABEL.test(text) && !HAS_AMOUNT.test(text) ? `${text} ${NO_PRICE}` : text;
+      })
+      .join("\n"))
     .filter(Boolean)
     .join("\n");
 }
