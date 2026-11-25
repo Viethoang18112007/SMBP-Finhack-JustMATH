@@ -99,7 +99,7 @@ The app has **no demo**: no Live/Demo switch, no sample weeks, tour, simulated t
 
 **Widget (Shortcuts, iOS 16 and older):** the same page explains a shortcut that reads `GET /api/shortcut/today` (one line such as "SSUST: HK$82.29 left today · 3 day streak · 1 to review") and shows it; iOS can put that shortcut on the home screen as a widget, and a tap shows the line.
 
-On Render's free plan the disk is wiped when the service restarts or sleeps, so app data does not last there; a paid disk (set `SSUST_DATA` to it) would keep it.
+**Backup on the phone.** On Render's free plan the disk is wiped when the service restarts or sleeps. The server stays the engine (every budget rule runs there), but its data is now a cache that can be rebuilt: the copy on the phone is the backup. After each change (once per burst of changes) and at each app open, the app reads `GET /api/backup` (everything stored for this phone: budget weeks, payments, To review, campus, Apple Pay status, map meals, feedback; streak, stars, medals and badges are computed from those) and keeps it, with the time and the phone's id, in the app's durable storage (Capacitor Preferences, which iOS keeps until the app is deleted; the WebView storage holds a mirror). When the server answers that it has nothing for this phone (`"fresh": true` in the state), or a backup shows fewer rows than the copy, the app sends the copy back with `POST /api/restore` and shows "Your data was restored from this phone." The restore merges: rows already on the server stay, missing ones are added, and nothing is counted twice, so an Apple Pay payment that arrived while the server was empty is kept in To review. At launch the app first pings the server to wake it; if it has not answered within about 3 seconds, or cannot be reached, the last saved numbers show read-only under "Offline, last updated hh:mm" until it answers. Where the data lives: on the phone and on the server, nowhere else. There are no accounts and no third party; the phone's random id is the only link between the two. Manual checks on a real iPhone: [docs/RESTORE_TEST.md](docs/RESTORE_TEST.md). A paid disk (set `SSUST_DATA` to it) would keep the server data too. The web app and its demo mode are unchanged and keep no copy.
 
 ## Rewards and feedback
 
@@ -187,7 +187,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (827 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (829 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 
@@ -423,6 +423,7 @@ Categories are `main`, `snack`, `fixed`, `experience`, `development`. Every othe
 - No bank connection and no real money: you type in what you spend.
 - **No new chain prices this time.** The chains' own sites show no prices and the delivery sites refuse automated reading, so none were added: a price is only added when it was read on its page that day.
 - One user per computer; `run.py` only listens on `127.0.0.1`. The hosted `serve.py` is shared by every visitor.
+- **iPhone app: the server is a cache, the phone copy is the backup.** If the app is deleted from the phone, its copy and its id go with it, and the server's data (if any is left) can no longer be reached from a new install. Payments that Apple Pay sends while the server is empty wait in To review and are merged at restore. A restore keeps what the server already has: a week's budget set on the empty server before the restore wins over the copy's. The copy is only as recent as the last time the app reached the server (changes are only made while it can). A future server version must keep accepting older backups, or a phone with an older copy cannot restore. The home screen widget keeps its last numbers while the server sleeps, but right after a wipe it can show "set your budget" until the app is opened once.
 
 ## Credits
 

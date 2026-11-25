@@ -108,5 +108,18 @@ class Flow(unittest.TestCase):
         self.assertGreaterEqual(len(re.findall(r"if \(!NATIVE\) return", text)), 3)
 
 
+class Docs(unittest.TestCase):
+    def test_manual_restore_checklist(self):
+        text = read(ROOT / "docs" / "RESTORE_TEST.md")
+        for words in ("Manual Deploy", "To review", "Your data was restored from this phone.", "Offline, last updated"):
+            with self.subTest(words=words):
+                self.assertIn(words, text)
+
+    def test_readme_states_where_the_data_lives(self):
+        text = read(ROOT / "README.md")
+        self.assertIn("docs/RESTORE_TEST.md", text)
+        self.assertIn("the copy on the phone is the backup", text)
+
+
 if __name__ == "__main__":
     unittest.main()
