@@ -85,8 +85,10 @@ class Flow(unittest.TestCase):
         text = read(JS / "api.js")
         self.assertIn('fetch(apiUrl("/api/ping")', text)
         self.assertIn("export function setReadOnly(", text)
-        self.assertIn("if (body && readOnly && path !== RESTORE_PATH)", text)
+        self.assertIn("if (body && readOnly && path !== RESTORE_PATH && !READ_ONLY_POSTS.has(path))", text)
         self.assertIn('const RESTORE_PATH = "/api/restore";', text)  # the copy can go back while still offline
+        # reading a receipt or a typed entry is not a change: allowed while offline
+        self.assertIn('const READ_ONLY_POSTS = new Set(["/api/receipt/parse", "/api/assistant/parse"]);', text)
 
     def test_launch_wakes_first_and_falls_back_to_the_saved_state(self):
         text = read(JS / "main.js")

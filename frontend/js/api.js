@@ -6,7 +6,8 @@ import { NATIVE, apiUrl, deviceId } from "./config.js";
 const OFFLINE_WRITE = "You're offline: these are your last saved numbers. Changes are paused until the server answers.";
 // Sent while still offline, right after the server answers again: the phone's own copy going back.
 const RESTORE_PATH = "/api/restore";
-// POST routes that only read: no backup needed after them.
+// POST routes that only read: allowed while offline (reading a receipt is not a change; if the server
+// really is unreachable, the fetch error says so), and no backup needed after them.
 const READ_ONLY_POSTS = new Set(["/api/receipt/parse", "/api/assistant/parse"]);
 let readOnly = false;
 const writeListeners = [];
@@ -32,7 +33,7 @@ export function wake() {
 }
 
 export async function api(path, body) {
-  if (body && readOnly && path !== RESTORE_PATH) {
+  if (body && readOnly && path !== RESTORE_PATH && !READ_ONLY_POSTS.has(path)) {
     throw new Error(OFFLINE_WRITE);
   }
   let res;
