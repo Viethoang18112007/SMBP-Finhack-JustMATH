@@ -34,5 +34,8 @@ class AppViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         super.capacitorDidLoad()
         webView?.configuration.userContentController.add(widgetMessages, name: "ssustWidget")
+        // Our own plugin (ReceiptScanner.swift) lives in this app, not in an npm package, so it is
+        // registered here, before the web page loads.
+        bridge?.registerPluginInstance(ReceiptScannerPlugin())
     }
 }
