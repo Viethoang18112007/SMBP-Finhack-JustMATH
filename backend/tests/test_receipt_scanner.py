@@ -153,5 +153,18 @@ class WebSide(unittest.TestCase):
         self.assertIn('getElementById("scan-photo")', render)
 
 
+class Docs(unittest.TestCase):
+    def test_manual_checklist(self):
+        text = read("docs", "RECEIPT_SCAN_TEST.md")
+        for word in ("小計", "$1,032.0", "crumpled", "change", "library", "denied", "TestFlight"):
+            self.assertIn(word, text)
+
+    def test_readme_says_what_leaves_the_phone(self):
+        text = read("README.md")
+        self.assertIn("Apple's on-device text recognition", text)
+        self.assertIn("No photo leaves the phone", text)
+        self.assertIsNone(re.search(r"\bAI\b", read("docs", "RECEIPT_SCAN_TEST.md")))
+
+
 if __name__ == "__main__":
     unittest.main()
