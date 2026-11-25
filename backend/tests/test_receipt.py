@@ -237,6 +237,58 @@ class RealReceipts(unittest.TestCase):
         self.assertEqual(result["line"], "TOTAL $38.00")
 
 
+class ColumnReads(unittest.TestCase):
+    """Text where the labels and their prices were not put back on one row: a lone label never takes a
+    price that belongs to another label, and the phone's "no price on this row" mark is ignored."""
+
+    check = Totals.check
+
+    def test_labels_then_prices_pair_in_order(self):
+        text = "Cafe Boheme\nSubtotal\nService Charge(10%)\nAmount\n$938.0\n$93.8\n$1,032.0\nThank You"
+        result = self.check(text, 103200, "Cafe Boheme")
+        self.assertFalse(result["guess"])
+        self.assertEqual(result["line"], "Amount $1,032.0")
+
+    def test_total_column_pairs_in_order(self):
+        result = self.check("Shop\nTOTAL\nCASH\nCHANGE\n$62.50\n$100.00\n$37.50", 6250)
+        self.assertFalse(result["guess"])
+
+    def test_more_prices_than_labels_is_never_sure(self):
+        # A label is missing: which price goes with "Amount" is unknown, so no sure total.
+        result = parse_receipt("Shop\nSubtotal\nAmount\n$938.0\n$93.8\n$1,032.0")
+        self.assertTrue(result["guess"] or not result["found"], result)
+
+    def test_label_not_last_before_fewer_prices_is_never_sure(self):
+        result = parse_receipt("Shop\nSubtotal\nAmount\nThank You\n$938.0\n$1,032.0")
+        self.assertTrue(result["guess"] or not result["found"], result)
+
+    def test_a_price_attached_to_its_own_label_is_not_taken(self):
+        # "Amount" never takes the subtotal's price; the subtotal stays only a best guess.
+        result = parse_receipt("Shop\nPizza $40.00\nAmount\nSubtotal $938.0\nThanks")
+        self.assertTrue(result["guess"])
+        self.assertEqual(result["line"], "Subtotal $938.0")
+
+    def test_whole_receipt_read_column_by_column(self):
+        lines = ("Cafe Boheme", "1 Apple Juice", "1 BBQ Pork Rib 1KG", "Subtotal", "Service Charge(10%)", "Amount",
+                 "Thank You", "$38.0", "$388.0", "$938.0", "$93.8", "$1,032.0")
+        result = parse_receipt("\n".join(lines))
+        self.assertTrue(result["guess"] or not result["found"], result)
+
+    def test_leading_quantity_is_not_the_amount(self):
+        # "1 小計" with its price read elsewhere: the quantity 1 is not a subtotal of HK$1.00.
+        text = ("fusion\nHKUST\n124715 能量果凍-白葡萄味 1\n5% OFF (SU-SCO)\n1 小計\nMASTER\n找續\nGP.MASTERCARD\n"
+                "APP Label:DEBIT MASTERCARD\n25/11/26 15:25:28\n$15.90\n-$0.80\n$15.10\n$15.10\n$0.00\n$15.10")
+        self.check(text, 1510)
+        self.check("Shop\nTea $15.10\n2 TOTAL 15.10", 1510)
+
+    def test_no_price_mark_from_the_phone(self):
+        text = "Cafe Boheme\nPizza $938.0\nAmount (no price on this row)\n$1,032.0\nThank You"
+        result = self.check(text, 103200, "Cafe Boheme")
+        self.assertFalse(result["guess"])
+        self.assertEqual(result["line"], "Amount $1,032.0")
+        self.assertEqual(parse_receipt("TOTAL (no price on this row)\nThanks")["found"], False)
+
+
 class Labels(unittest.TestCase):
     check = Totals.check
 

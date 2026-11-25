@@ -14,7 +14,10 @@ Rules, in priority order:
 - weak words (SUBTOTAL, 小計): never beat a strong or medium line. A subtotal equal to a payment
   line is sure (a shop that prints no TOTAL); alone it is a best guess. Subtotal + service charge
   is never added up (the printed total is rounded).
-- if a label stands alone, an amount on one of the next two lines is used (OCR splits columns).
+- if a label stands alone, an amount-only line after it is used (OCR splits columns), only when the
+  order leaves no doubt: a lone label, as many prices as labels in a column of labels, or the last
+  label of the column. Never a price that belongs to another label. A quantity before a label
+  ("1 小計") is not its amount. The iPhone app's "(no price on this row)" mark is dropped.
 - never a candidate: cash tendered and change (CASH, 現金, TENDERED, CHANGE, 找續, 找贖, 收), TIP,
   a remaining Octopus value, a quantity (QTY, ITEMS), negative amounts (discounts) and zero.
 - no label gives a total: a best guess ("guess": True, the app asks to check it): the amount paid
@@ -44,6 +47,7 @@ EXCLUDE_WORDS = ("CHANGE", "找續", "找续", "找贖", "找赎", "收", "CASH"
                  "GRATUITY", "REMAINING", "BALANCE", "餘額", "余额", "剩餘")
 PAYMENT_WORDS = ("八達通", "八达通", "信用卡", "扣賬卡", "扣账卡", "銀聯", "银联")
 QUANTITY_WORDS = ("QTY", "QUANTITY", "ITEMS", "ITEM(S)", "數量", "件數")
+SERVICE_WORDS = ("SERVICE", "服務費", "服务费", "加一")  # a label in a column of labels, never a total
 HEADER_WORDS = ("RECEIPT", "INVOICE", "收據", "收据", "發票", "WELCOME", "歡迎")
 
 # TOTAL as a camera reads it: O as 0 or Q, L as 1, I or |, A as 4, and a stray space.
@@ -70,6 +74,10 @@ _MINUS_BEFORE = re.compile(r"(?:^|[\s(:=])-\s*(?:HK ?\$|HKD|\$)?\s*$|(?:HK ?\$|H
 _CJK_GAP = re.compile("(?<=[㐀-鿿])\\s+(?=[㐀-鿿])")  # OCR puts spaces between Chinese characters
 _ONLY_AMOUNT = re.compile(r"^\s*-?\s*(?:HK\$|HKD|\$)?\s*-?\s*[\d,]+(?:\.\d{1,2})?\s*(?:\$HK|HKD)?\s*$", re.IGNORECASE)
 _ONLY_CURRENCY = re.compile(r"^\s*(?:HK\$|HKD|HK|\$|港幣|港元)\s*:?\s*$", re.IGNORECASE)
+_LEADING_QTY = re.compile(r"^\s*\d{1,2}\s+(?=[^\d\s.,$])")  # "1 小計": a quantity before the label
+# Added by the iPhone app (frontend/js/rows.js NO_PRICE) after a total label that has no price on its
+# own printed row. It only helps a person reading the text; the parser drops it.
+ROW_MARK = "(no price on this row)"
 
 
 def _has(line, words):
@@ -140,22 +148,56 @@ def _usable(token):
     return cents if cents > 0 and not negative else None
 
 
+def _only_amount(line):
+    return bool(_ONLY_AMOUNT.match(_normal(line)))
+
+
+def _lone_label(line):
+    """A label line without a price of its own (TOTAL, CASH, VISA, Service Charge(10%)...)."""
+    if _only_amount(line) or any(price for _, price, _ in _tokens(_LEADING_QTY.sub("", line))):
+        return False
+    return _kind(line) != "plain" or _has(line, SERVICE_WORDS)
+
+
 def _next_amount(lines, i):
-    """(cents or None, line) for an amount alone on one of the two lines after a lone label, skipping
-    a lone "HKD". None when there is none."""
-    for j in range(i + 1, min(i + 3, len(lines))):
-        if _ONLY_AMOUNT.match(_normal(lines[j])):
-            found = _tokens(lines[j])
-            return (_usable(found[-1]), lines[j]) if found else None
-        if not _ONLY_CURRENCY.match(lines[j]):
-            return None
-    return None
+    """(cents or None, line) for the amount that goes with lone label i, read from the amount-only
+    lines after it (a lone "HKD" is skipped). The label sits in a block of label lines without a
+    price, followed by a run of amount-only lines (a column read: labels first, then prices):
+    - one line in the block, or as many amounts as lines: the amount in the label's place;
+    - fewer amounts, and the label is the block's last line: the last amount;
+    - anything else is unknown (None), so a lone label never takes a price that belongs to another one."""
+    seq = [j for j in range(len(lines)) if not _ONLY_CURRENCY.match(lines[j])]
+    if i not in seq:
+        return None
+    at = seq.index(i)
+    start = end = at
+    while start > 0 and _lone_label(lines[seq[start - 1]]):
+        start -= 1
+    while end + 1 < len(seq) and _lone_label(lines[seq[end + 1]]):
+        end += 1
+    amounts = []
+    for j in seq[end + 1:]:
+        if not _only_amount(lines[j]):
+            break
+        amounts.append(j)
+    size, place = end - start + 1, at - start
+    if not amounts:
+        return None
+    if size == 1 or len(amounts) == size:
+        j = amounts[place]
+    elif place == size - 1 and len(amounts) < size:
+        j = amounts[-1]
+    else:
+        return None
+    found = _tokens(lines[j])
+    return (_usable(found[-1]), lines[j]) if found else None
 
 
 def _line_amount(lines, i):
-    """(cents, line) for the amount on labelled line i (its last amount), else on one of the two lines
-    after it. None when there is none or it is zero or negative."""
-    found = _tokens(lines[i])
+    """(cents, line) for the amount on labelled line i (its last amount, a leading quantity such as the
+    1 in "1 小計" left out), else from the amount-only lines after it (_next_amount). None when there is
+    none or it is zero or negative."""
+    found = _tokens(_LEADING_QTY.sub("", lines[i]))
     if found:
         cents = _usable(found[-1])
         return (cents, lines[i]) if cents else None
@@ -191,7 +233,8 @@ def parse_receipt(text):
         raise ValueError("Send the receipt text.")
     if len(text) > MAX_TEXT:
         raise ValueError("The receipt text is too long.")
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    lines = [line.replace(ROW_MARK, "").strip() for line in text.splitlines()]
+    lines = [line for line in lines if line]
     kinds = [_kind(line) for line in lines]
     merchant = _merchant(lines, kinds)
     labelled = {"strong": [], "medium": [], "weak": []}
