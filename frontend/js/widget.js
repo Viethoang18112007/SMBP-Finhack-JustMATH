@@ -15,7 +15,7 @@ import { prefillAdd, quickAdd } from "./actions.js";
 import { registerOverlay, setHtml } from "./closers.js";
 import { openApp } from "./device.js";
 import { CATEGORIES, FUND_NAME, escapeHtml, hk } from "./format.js";
-import { readReceipt, trimText } from "./ocr.js";
+import { readTotal } from "./ocr.js";
 import { streakChip } from "./rewards.js";
 import { state } from "./store.js";
 
@@ -295,12 +295,11 @@ async function readImage(file, sample = null) {
   w.progress = "Loading the offline reader…";
   renderQuick();
   try {
-    const text = await readReceipt(file, (percent, words) => {
+    const { result } = await readTotal(file, (text) => api("/api/receipt/parse", { text }), (percent, words) => {
       w.progress = percent ? `${words}: ${percent}%` : `${words}…`;
       const status = el("lk-status");
       if (status) status.textContent = w.progress;
     });
-    const result = await api("/api/receipt/parse", { text: trimText(text) });
     if (result.found && result.entry) {
       w.entry = result.entry;
       w.receipt = { merchant: result.merchant, line: result.line, amount: result.amount, guess: Boolean(result.guess) };

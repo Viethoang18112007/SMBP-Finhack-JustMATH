@@ -131,8 +131,8 @@ Levels: **Chill** (under 20, green), **Fine** (under 40), **Sweating** (under 60
 
 There is one pipeline, used by **Scan receipt** in Add payment and by the **camera screen** (quick add widget > Photo):
 
-1. A photo or screenshot (the shutter and the gallery button open the file picker; on a phone the shutter asks for the camera) is read in the browser, offline, by the vendored tesseract.js (English and Traditional Chinese), loaded only when needed.
-2. The text goes to `POST /api/receipt/parse`. `backend/ssust/receipt.py` finds the total with tested rules: lines with TOTAL, AMOUNT DUE, GRAND TOTAL, 合計, 總數, 總計 or 應付 win (the last one), SUBTOTAL/小計, CHANGE, CASH, TIP and the remaining Octopus value never count, and dates, times, phone and card numbers are ignored. It also guesses the merchant.
+1. A photo or screenshot (the shutter and the gallery button open the file picker; on a phone the shutter asks for the camera) is read in the browser, offline, by the vendored tesseract.js (English and Traditional Chinese), loaded only when needed. Dark borders (a screenshot's black bars, a dark table) are cut off first and the receipt is enlarged to a readable size. If the first reading finds no total, a second reading with other settings runs and the better answer is kept.
+2. The text goes to `POST /api/receipt/parse`. `backend/ssust/receipt.py` finds the total with tested rules: lines with TOTAL, AMOUNT DUE, GRAND TOTAL, 合計, 總數, 總計 or 應付 win (the last one), SUBTOTAL/小計, CHANGE, CASH, TIP and the remaining Octopus value never count, and dates, times, phone and card numbers are ignored. Amounts like `$1,032.0` (thousands comma, one decimal) are read. With no total line, subtotal + service charge (rounded to the dollar), else the largest price, is offered as a **best guess** to check. It also guesses the merchant.
 3. `assistant.parse_entry` picks the fund from the merchant (chain names first, then keywords), gives the reason, and runs the typo check.
 4. Add payment opens **pre-filled** and highlighted ("Read from receipt: check it", with the fund's reason). **It never saves by itself**: you check it and Save as usual, overspend step included.
 
@@ -186,7 +186,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (735 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (746 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 

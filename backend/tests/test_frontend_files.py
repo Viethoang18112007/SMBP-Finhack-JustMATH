@@ -877,6 +877,17 @@ class ScanReceipt(unittest.TestCase):
         self.assertIn("Read from receipt: check it", self.add)
         self.assertIn("Could not read a total, type it in.", self.add)
 
+    def test_dark_border_cut_and_second_pass(self):
+        # A screenshot or a photo with black bars lost the price column and the total: the dark
+        # border is cut, and a second pass (one block, PSM 6, no stretch) runs only without a sure total.
+        self.assertIn("receiptRegion(picture, width, height)", self.ocr)
+        self.assertIn('pass(images.stretched, "4")', self.ocr)
+        self.assertIn('pass(images.plain, "6")', self.ocr)
+        self.assertIn("if (rank(first.result) === 2) return first;", self.ocr)
+        widget = (JS_ROOT / "widget.js").read_text(encoding="utf-8")
+        for source in (self.actions, widget):
+            self.assertIn('readTotal(file, (text) => api("/api/receipt/parse", { text })', source)
+
     def test_never_saves_by_itself(self):
         scan = self.actions[self.actions.index("export async function scanReceipt"):]
         scan = scan[:scan.index("\n}\n")]

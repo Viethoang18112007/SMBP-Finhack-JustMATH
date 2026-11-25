@@ -13,10 +13,12 @@ Rules:
 - lines with SUBTOTAL/小計 (misread too), CHANGE, CASH, TENDERED, TIP, a remaining Octopus value,
   or a total quantity (QTY, ITEMS) never count.
 - dates, times, percents, phone numbers and card numbers are removed before reading amounts;
-  a decimal misread as "48,00" or "48 . 00" is read as 48.00; on a total line the last amount
-  is the total.
-- with no total line, the largest price on the receipt (an amount with two decimals, not on an
-  ignored line) is returned as a best guess, marked "guess": the app asks to check it.
+  a decimal misread as "48,00" or "48 . 00" is read as 48.00, one decimal ("93.8", "93 . 8") and
+  a thousands comma ("$1,032.0") too; on a total line the last amount is the total.
+- with no total line but a subtotal and a service charge (each with an amount on its line or one
+  of the next two), their sum rounded to the nearest dollar is a best guess, marked "guess".
+- else the largest price on the receipt (an amount with decimals, not on an ignored line) is
+  returned as a best guess, marked "guess": the app asks to check it.
 - HK$, HKD, $ and plain numbers are accepted. The merchant guess is the first line with a few
   letters that is not a receipt header.
 """
@@ -34,6 +36,7 @@ IGNORE_WORDS = ("SUBTOTAL", "SUB TOTAL", "SUB-TOTAL", "小計", "小计", "CHANG
                 "CASH", "TENDERED", "TIP", "GRATUITY", "REMAINING", "BALANCE", "餘額", "余额", "剩餘", "現金")
 AMOUNT_WORDS = ("金額", "金额", "MONTANT", "PAYABLE")
 QUANTITY_WORDS = ("QTY", "QUANTITY", "ITEMS", "ITEM(S)", "數量", "件數")
+SERVICE_WORDS = ("SERVICE", "SVC", "服務費", "服务费", "加一")
 HEADER_WORDS = ("RECEIPT", "INVOICE", "收據", "收据", "發票", "WELCOME", "歡迎")
 
 # TOTAL as a camera reads it: O as 0 or Q, L as 1, I or |, A as 4, and a stray space.
@@ -50,6 +53,7 @@ _CLEAN = (
     re.compile(r"\d{7,}"),  # long digit runs: card, phone, receipt numbers
 )
 _DECIMAL = re.compile(r"(\d)(?:\s*\.\s*|,)(\d{2})(?!\d)")  # 48,00 / 48 . 00 -> 48.00
+_DECIMAL_ONE = re.compile(r"(\d)\s*\.\s*(\d)(?![\d,])")  # 93 . 8 -> 93.8 (one decimal, as many HK receipts print)
 _AMOUNT = re.compile(r"(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?(?![\d,]|\.\d)")
 _CJK_GAP = re.compile("(?<=[㐀-鿿])\\s+(?=[㐀-鿿])")  # OCR puts spaces between Chinese characters
 _ONLY_AMOUNT = re.compile(r"^\s*(?:HK\$|HKD|\$)?\s*[\d,]+(?:\.\d{1,2})?\s*$", re.IGNORECASE)
@@ -80,10 +84,10 @@ def _amounts(line, priced_only=False):
     text = line
     for pattern in _CLEAN:
         text = pattern.sub(" ", text)
-    text = _DECIMAL.sub(r"\1.\2", text)
+    text = _DECIMAL_ONE.sub(r"\1.\2", _DECIMAL.sub(r"\1.\2", text))
     found = []
     for whole, decimals in _AMOUNT.findall(text):
-        if priced_only and len(decimals) != 2:
+        if priced_only and not decimals:
             continue
         cents = int(whole.replace(",", "")) * 100 + int((decimals or "0").ljust(2, "0"))
         if 0 < cents <= MAX_CENTS:
@@ -113,13 +117,39 @@ def _merchant(lines):
 def _next_amount(lines, i):
     """The amount on one of the two lines after a lone total word, skipping a lone "HKD"."""
     for j in range(i + 1, min(i + 3, len(lines))):
-        line = _DECIMAL.sub(r"\1.\2", lines[j])
+        line = _DECIMAL_ONE.sub(r"\1.\2", _DECIMAL.sub(r"\1.\2", lines[j]))
         if _ONLY_AMOUNT.match(line):
             found = amounts_in(line)
             return (found[-1], lines[j]) if found else None
         if not _ONLY_CURRENCY.match(line):
             return None
     return None
+
+
+def _line_amount(lines, i):
+    """(cents, line) for the amount on line i, else on one of the two lines after it, else None."""
+    found = amounts_in(lines[i])
+    if found:
+        return found[-1], lines[i]
+    nxt = _next_amount(lines, i)
+    return (nxt[0], f"{lines[i]} {nxt[1]}") if nxt else None
+
+
+def _subtotal_plus_service(lines):
+    """No total line: subtotal + service charge (the last of each), rounded to the nearest dollar."""
+    subtotal = service = None
+    for i, line in enumerate(lines):
+        upper = line.upper()
+        if _SUBTOTAL.search(upper) or _has(line, ("SUBTOTAL", "SUB TOTAL", "SUB-TOTAL", "小計", "小计")):
+            subtotal = _line_amount(lines, i) or subtotal
+        elif _has(line, SERVICE_WORDS) and not _ignored(line):
+            service = _line_amount(lines, i) or service
+    if not subtotal or not service:
+        return None
+    cents = (subtotal[0] + service[0] + 50) // 100 * 100
+    if not 0 < cents <= MAX_CENTS:
+        return None
+    return cents, f"{subtotal[1]} + {service[1]}"
 
 
 def parse_receipt(text):
@@ -135,14 +165,7 @@ def parse_receipt(text):
         strong = _is_total(line)
         if not strong and not _is_amount(line):
             continue
-        found = None
-        amounts = amounts_in(line)
-        if amounts:
-            found = (amounts[-1], line)
-        else:
-            nxt = _next_amount(lines, i)
-            if nxt:
-                found = (nxt[0], f"{line} {nxt[1]}")
+        found = _line_amount(lines, i)
         if found and strong:
             total = found
         elif found:
@@ -151,7 +174,9 @@ def parse_receipt(text):
     merchant = _merchant(lines)
     if best is not None:
         return {"found": True, "amount": best[0], "line": best[1], "merchant": merchant, "guess": False}
-    guess = None
+    guess = _subtotal_plus_service(lines)
+    if guess is not None:
+        return {"found": True, "amount": guess[0], "line": guess[1], "merchant": merchant, "guess": True}
     for line in lines:
         if _ignored(line):
             continue

@@ -4,7 +4,7 @@ import { api } from "./api.js";
 import { FUND_FIELDS, FUND_NAME, hk, newRequestId, parseAmount, plainAmount } from "./format.js";
 import { render, renderToast } from "./render.js";
 import { leaveElement } from "./motion.js";
-import { readReceipt, trimText } from "./ocr.js";
+import { readTotal } from "./ocr.js";
 import { nextTap, showNotification } from "./inbox.js";
 import { defaultChoice } from "./sheet.js";
 import { applyState, state } from "./store.js";
@@ -90,15 +90,15 @@ export async function scanReceipt(file) {
   let result = null;
   let read = "";
   try {
-    const text = await readReceipt(file, (percent, words) => {
+    const scan = await readTotal(file, (text) => api("/api/receipt/parse", { text }), (percent, words) => {
       if (!state.scan || state.scan.status !== "reading") return;
       state.scan.percent = percent;
       state.scan.words = words;
       const el = document.getElementById("scan-status");
       if (el) el.textContent = percent ? `${words}: ${percent}%` : `${words}…`;
     });
-    read = trimText(text);
-    result = await api("/api/receipt/parse", { text: read });
+    read = scan.text;
+    result = scan.result;
   } catch (err) {
     if (!state.adding) return;
     keepDraft();

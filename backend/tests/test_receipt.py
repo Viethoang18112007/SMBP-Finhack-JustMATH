@@ -125,6 +125,73 @@ class AmountInsteadOfTotal(Totals):
         self.assertTrue(result["guess"])
 
 
+class HongKongRestaurant(unittest.TestCase):
+    """A real dine-in receipt: "$" prices with one decimal, a thousands comma, a 10% service charge
+    and the total printed big next to "Amount"."""
+
+    check = Totals.check
+
+    LINES = ("(#E7)\nCafe Boheme\nPhone: +852 9251 6870\nShop 8, G/F, Alto Residences,\n"
+             "29 Tong Yin Street, Tseung Kwan O\nOrder Time: 2026-11-22 12:21:16\n"
+             "Printing Time: 2026-11-22 13:32:10\nReceipt No.: 20261122122116E7\nServed By: Shirley\n"
+             "Order No.: E7 [Dine-in]\nNumber of Patron: 5\n"
+             "1 Apple Juice $38.0\n1 Aqua Panna 750ML $68.0\n1 Truffle & Camembert Pizza $178.0\n"
+             "1 BBQ Pork Rib 1KG $388.0\n1 Seafood Linguine $178.0\n1 Marshmallow Banana Pizza $88.0\n")
+
+    def test_amount_with_thousands_and_one_decimal(self):
+        text = self.LINES + "Subtotal $938.0\nService Charge(10%) $93.8\nAmount $1,032.0\nThank You"
+        result = self.check(text, 103200, "Cafe Boheme")
+        self.assertFalse(result["guess"])
+        self.assertEqual(result["line"], "Amount $1,032.0")
+
+    def test_amount_on_the_next_line(self):
+        text = self.LINES + "$938.0\nSubtotal\n$93.8\nService Charge(10%)\nAmount\n$1,032.0\nThank You"
+        self.assertFalse(self.check(text, 103200)["guess"])
+
+    def test_total_with_thousands_and_one_decimal(self):
+        for line in ("TOTAL $1,032.0", "T0TAL 1,032.0", "TOTA1 HK$1,032.0", "Total 1,032.0"):
+            with self.subTest(line=line):
+                self.assertFalse(self.check(f"Sample Shop\nPizza $938.0\n{line}", 103200)["guess"])
+
+    def test_one_decimal_split_by_spaces(self):
+        for line in ("TOTAL 93 . 8", "TOTAL $93. 8", "TOTAL 1,032 .0"):
+            with self.subTest(line=line):
+                self.check(f"Sample Shop\n{line}", 103200 if "032" in line else 9380)
+
+    def test_no_total_subtotal_plus_service_charge_is_a_best_guess(self):
+        # The big "Amount" line misread: subtotal + service charge, rounded to the dollar.
+        text = self.LINES + "Subtotal $938.0\nService Charge(18%) $93.8\nAmount gol\nI"
+        result = self.check(text, 103200)
+        self.assertTrue(result["guess"])
+        self.assertIn("Subtotal", result["line"])
+        self.assertIn("Service", result["line"])
+
+    def test_subtotal_and_service_charge_on_the_next_lines(self):
+        result = self.check("Sample Cafe\nSubtotal\n$938.0\nService Charge(10%)\n$93.8", 103200)
+        self.assertTrue(result["guess"])
+
+    def test_subtotal_plus_service_rounds_to_the_nearest_dollar(self):
+        self.assertEqual(self.check("Sample Cafe\nSubtotal 100.00\nService charge 10.40", 11000)["amount"], 11000)
+        self.assertEqual(self.check("Sample Cafe\nSub total 100.00\nSERVICE 10.50", 11100)["amount"], 11100)
+
+    def test_a_total_wins_over_subtotal_plus_service(self):
+        result = self.check("Sample Cafe\nSubtotal 100.00\nService 10.00\nTotal 110.50", 11050)
+        self.assertFalse(result["guess"])
+
+    def test_largest_price_with_one_decimal_is_a_guess(self):
+        result = self.check(self.LINES + "Thank You", 38800)
+        self.assertTrue(result["guess"])
+        self.assertEqual(result["line"], "1 BBQ Pork Rib 1KG $388.0")
+
+    def test_what_the_phone_read_finds_nothing(self):
+        # The left column only, as the iPhone read it: no price at all, so nothing is invented.
+        text = ("HET)\ncafe  Boher\ne\nime: 202\n3 50261122122116E 7\nApple Juice\nAqua Panna 758ML\n"
+                "r   e & Camembert Pizz\n) Pork Rlb 1KG\nfood Linguine\nMarshmallow Banana Pizza\nSubtotal\nService")
+        result = parse_receipt(text)
+        self.assertFalse(result["found"])
+        self.assertIsNone(result["amount"])
+
+
 class NothingFound(unittest.TestCase):
     def test_no_total_word_and_no_price(self):
         result = parse_receipt("Sample Shop\nThank you\nTable 12")
