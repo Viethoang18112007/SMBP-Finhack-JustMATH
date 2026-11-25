@@ -638,8 +638,9 @@ class ReceiptRoute(ApiTest):
     def test_nothing_found(self):
         data = self.call("POST", "/api/receipt/parse", {"text": "Sample Shop\nThank you"})
         self.assertFalse(data["found"])
-        # A price but no TOTAL line: the largest price, marked as a guess.
-        data = self.call("POST", "/api/receipt/parse", {"text": "Sample Shop\nItem 12.00"})
+        self.assertEqual(data["reason"], "no_amounts")  # the app asks for a better photo
+        # Prices but no TOTAL line: a best guess (here the largest price).
+        data = self.call("POST", "/api/receipt/parse", {"text": "Sample Shop\nItem 12.00\nItem 8.00"})
         self.assertEqual((data["found"], data["guess"], data["amount"]), (True, True, 1200))
 
     def test_parse_never_saves_a_payment(self):

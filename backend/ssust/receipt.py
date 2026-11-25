@@ -3,60 +3,72 @@
 The text comes from OCR on a phone photo, so it can be wrong: the app only pre-fills the
 amount and the student always checks it and confirms through the normal payment flow.
 
-Rules:
-- a line with a total word (TOTAL, AMOUNT DUE, GRAND TOTAL, 合計, 總數, 總計, 應付...) is a
-  candidate; the last candidate wins. Receipts that print AMOUNT instead (AMT, AM0UNT, 金額,
-  Montant, Amount payable) are read the same way, but only when no TOTAL line is found, so an
-  "Amount" column header or an "Amount paid" line never beats a real total. TOTAL is also found when the camera misreads it
-  (T0TAL, TOTA1, TOTAI, T0TA L). If a total word stands alone, an amount on one of the next two
-  lines is used (OCR often splits the two columns).
-- lines with SUBTOTAL/小計 (misread too), CHANGE, CASH, TENDERED, TIP, a remaining Octopus value,
-  or a total quantity (QTY, ITEMS) never count.
-- dates, times, percents, phone numbers and card numbers are removed before reading amounts;
-  a decimal misread as "48,00" or "48 . 00" is read as 48.00, one decimal ("93.8", "93 . 8") and
-  a thousands comma ("$1,032.0") too; on a total line the last amount is the total.
-- with no total line but a subtotal and a service charge (each with an amount on its line or one
-  of the next two), their sum rounded to the nearest dollar is a best guess, marked "guess".
-- else the largest price on the receipt (an amount with decimals, not on an ignored line) is
-  returned as a best guess, marked "guess": the app asks to check it.
-- HK$, HKD, $ and plain numbers are accepted. The merchant guess is the first line with a few
-  letters that is not a receipt header.
+Rules, in priority order:
+- strong total words (TOTAL, GRAND TOTAL, AMOUNT DUE, TOTAL DUE, 應付, 總計, 合計, 總額, 總數...):
+  the last one wins. TOTAL is also found when the camera misreads it (T0TAL, TOTA1, TOTAI, T0TA L).
+- medium words (AMOUNT, AMT, AM0UNT, 金額, Montant, PAYABLE): read the same way, but only when no
+  strong line is found, so an "Amount" column header or an "Amount paid" line never beats a total.
+- a payment line with an amount (MASTER, VISA, AMEX, UNIONPAY, OCTOPUS, 八達通, PAYME, ALIPAY,
+  WECHAT, 信用卡, 扣賬卡, EPS) is evidence of the amount paid: among several labelled lines, the
+  one the card paid wins.
+- weak words (SUBTOTAL, 小計): never beat a strong or medium line. A subtotal equal to a payment
+  line is sure (a shop that prints no TOTAL); alone it is a best guess. Subtotal + service charge
+  is never added up (the printed total is rounded).
+- if a label stands alone, an amount on one of the next two lines is used (OCR splits columns).
+- never a candidate: cash tendered and change (CASH, 現金, TENDERED, CHANGE, 找續, 找贖, 收), TIP,
+  a remaining Octopus value, a quantity (QTY, ITEMS), negative amounts (discounts) and zero.
+- no label gives a total: a best guess ("guess": True, the app asks to check it): the amount paid
+  by card if a payment line shows one, else the subtotal, else the price printed most often
+  (ties and all-once: the larger one). Only prices count: an amount with decimals or a currency
+  mark ($, HK$, HKD, $HK), never an ID, phone, date, time or card number.
+- fewer than 2 prices in the whole text: no best guess, "reason": "no_amounts" (retake the photo).
+  Prices but none usable: "reason": "no_total".
+- formats: $1,032.0, 1.032,00, 48,00, 48 . 00, 93 . 8, HK$ 38, 38,00 $HK. The merchant guess is
+  the first line with a few letters that is not a receipt header or a labelled line.
 """
 
 import re
+from collections import Counter
 
 from .validate import MAX_CENTS
 
 MAX_TEXT = 3500  # characters of OCR text accepted
 MERCHANT_MAX = 40
+MIN_PRICES = 2  # fewer prices than this in the text: the photo is retaken, nothing is guessed
 
-TOTAL_WORDS = ("GRAND TOTAL", "AMOUNT DUE", "TOTAL DUE", "TOTAL", "合計", "合计", "總數", "總数", "總計",
-               "总计", "應付", "应付", "總額", "总额")
-IGNORE_WORDS = ("SUBTOTAL", "SUB TOTAL", "SUB-TOTAL", "小計", "小计", "CHANGE", "找續", "找赎", "找贖",
-                "CASH", "TENDERED", "TIP", "GRATUITY", "REMAINING", "BALANCE", "餘額", "余额", "剩餘", "現金")
-AMOUNT_WORDS = ("金額", "金额", "MONTANT", "PAYABLE")
+STRONG_WORDS = ("GRAND TOTAL", "AMOUNT DUE", "TOTAL DUE", "TOTAL", "合計", "合计", "總數", "總数", "總計",
+                "总计", "應付", "应付", "總額", "总额")
+MEDIUM_WORDS = ("金額", "金额", "MONTANT", "PAYABLE")
+WEAK_WORDS = ("SUBTOTAL", "SUB TOTAL", "SUB-TOTAL", "小計", "小计")
+EXCLUDE_WORDS = ("CHANGE", "找續", "找续", "找贖", "找赎", "收", "CASH", "現金", "现金", "TENDERED", "TIP",
+                 "GRATUITY", "REMAINING", "BALANCE", "餘額", "余额", "剩餘")
+PAYMENT_WORDS = ("八達通", "八达通", "信用卡", "扣賬卡", "扣账卡", "銀聯", "银联")
 QUANTITY_WORDS = ("QTY", "QUANTITY", "ITEMS", "ITEM(S)", "數量", "件數")
-SERVICE_WORDS = ("SERVICE", "SVC", "服務費", "服务费", "加一")
 HEADER_WORDS = ("RECEIPT", "INVOICE", "收據", "收据", "發票", "WELCOME", "歡迎")
 
 # TOTAL as a camera reads it: O as 0 or Q, L as 1, I or |, A as 4, and a stray space.
 _TOTAL = re.compile(r"T ?[O0Q] ?T ?[A4] ?[L1I|]")
 _SUBTOTAL = re.compile(r"SUB ?-? ?T ?[O0Q] ?T")
 _AMOUNT_WORD = re.compile(r"\bAM ?[O0] ?UNT\b|\bAMT\b")
+_PAYMENT = re.compile(r"\b(?:MASTER\w*|VISA|AMEX|UNION ?PAY|OCTOPUS|PAYME|ALIPAY|WECHAT\w*|EPS)\b")
 
 _CLEAN = (
     re.compile(r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}"),  # dates
     re.compile(r"\d{1,2}:\d{2}(?::\d{2})?"),  # times
     re.compile(r"\d+(?:\.\d+)?\s*%"),  # percents
-    re.compile(r"[*xX•#]{3,}\s*\d{2,4}"),  # masked card numbers
+    re.compile(r"\d*[*xX•#]{3,}\s*\d{0,4}"),  # masked card numbers (535389******2423)
     re.compile(r"\b\d{4}[ -]\d{4}\b"),  # Hong Kong phone numbers
     re.compile(r"\d{7,}"),  # long digit runs: card, phone, receipt numbers
 )
+_EURO = re.compile(r"(?<![\d.,])(\d{1,3}(?:\.\d{3})+),(\d{2})(?!\d)")  # 1.032,00 -> 1032.00
 _DECIMAL = re.compile(r"(\d)(?:\s*\.\s*|,)(\d{2})(?!\d)")  # 48,00 / 48 . 00 -> 48.00
 _DECIMAL_ONE = re.compile(r"(\d)\s*\.\s*(\d)(?![\d,])")  # 93 . 8 -> 93.8 (one decimal, as many HK receipts print)
 _AMOUNT = re.compile(r"(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?(?![\d,]|\.\d)")
+_CURRENCY_BEFORE = re.compile(r"(?:HK ?\$|HKD|\$|港幣|港元)\s*-?\s*$", re.IGNORECASE)
+_CURRENCY_AFTER = re.compile(r"^\s*(?:\$ ?HK|HKD|HK\$|港幣|港元|元)", re.IGNORECASE)
+_MINUS_BEFORE = re.compile(r"(?:^|[\s(:=])-\s*(?:HK ?\$|HKD|\$)?\s*$|(?:HK ?\$|HKD|\$)\s*-\s*$", re.IGNORECASE)
 _CJK_GAP = re.compile("(?<=[㐀-鿿])\\s+(?=[㐀-鿿])")  # OCR puts spaces between Chinese characters
-_ONLY_AMOUNT = re.compile(r"^\s*(?:HK\$|HKD|\$)?\s*[\d,]+(?:\.\d{1,2})?\s*$", re.IGNORECASE)
+_ONLY_AMOUNT = re.compile(r"^\s*-?\s*(?:HK\$|HKD|\$)?\s*-?\s*[\d,]+(?:\.\d{1,2})?\s*(?:\$HK|HKD)?\s*$", re.IGNORECASE)
 _ONLY_CURRENCY = re.compile(r"^\s*(?:HK\$|HKD|HK|\$|港幣|港元)\s*:?\s*$", re.IGNORECASE)
 
 
@@ -65,46 +77,54 @@ def _has(line, words):
     return any(word in upper for word in words)
 
 
-def _ignored(line):
-    upper = line.upper()
-    return _has(line, IGNORE_WORDS) or _has(line, QUANTITY_WORDS) or bool(_SUBTOTAL.search(upper))
-
-
-def _is_total(line):
-    upper = line.upper()
-    return (bool(_TOTAL.search(upper)) or _has(line, TOTAL_WORDS)) and not _ignored(line)
-
-
-def _is_amount(line):
-    """AMOUNT where other receipts print TOTAL (a weaker word: used only without a TOTAL line)."""
-    return (bool(_AMOUNT_WORD.search(line.upper())) or _has(line, AMOUNT_WORDS)) and not _ignored(line)
-
-
-def _amounts(line, priced_only=False):
+def _normal(line):
+    """The line with IDs, dates, times, percents, phones and cards removed and decimals joined."""
     text = line
     for pattern in _CLEAN:
         text = pattern.sub(" ", text)
-    text = _DECIMAL_ONE.sub(r"\1.\2", _DECIMAL.sub(r"\1.\2", text))
+    text = _EURO.sub(lambda m: m.group(1).replace(".", "") + "." + m.group(2), text)
+    return _DECIMAL_ONE.sub(r"\1.\2", _DECIMAL.sub(r"\1.\2", text))
+
+
+def _tokens(line):
+    """Amounts on one line: [(cents, price, negative)]. A price has decimals or a currency mark."""
+    text = _normal(line)
     found = []
-    for whole, decimals in _AMOUNT.findall(text):
-        if priced_only and not decimals:
-            continue
+    for match in _AMOUNT.finditer(text):
+        whole, decimals = match.groups()
         cents = int(whole.replace(",", "")) * 100 + int((decimals or "0").ljust(2, "0"))
-        if 0 < cents <= MAX_CENTS:
-            found.append(cents)
+        if cents > MAX_CENTS:
+            continue
+        before, after = text[:match.start()], text[match.end():]
+        price = bool(decimals) or bool(_CURRENCY_BEFORE.search(before)) or bool(_CURRENCY_AFTER.match(after))
+        found.append((cents, price, bool(_MINUS_BEFORE.search(before))))
     return found
 
 
 def amounts_in(line):
-    """Amounts on one line, in cents, after dates, times, phones and card numbers are removed."""
-    return _amounts(line)
+    """Positive amounts on one line, in cents, after dates, times, phones and card numbers are removed."""
+    return [cents for cents, _, negative in _tokens(line) if cents > 0 and not negative]
 
 
-def _merchant(lines):
-    for line in lines:
+def _kind(line):
+    upper = line.upper()
+    if _has(line, EXCLUDE_WORDS) or _has(line, QUANTITY_WORDS):
+        return "excluded"
+    if _SUBTOTAL.search(upper) or _has(line, WEAK_WORDS):
+        return "weak"
+    if _TOTAL.search(upper) or _has(line, STRONG_WORDS):
+        return "strong"
+    if _AMOUNT_WORD.search(upper) or _has(line, MEDIUM_WORDS):
+        return "medium"
+    if _PAYMENT.search(upper) or _has(line, PAYMENT_WORDS):
+        return "payment"
+    return "plain"
+
+
+def _merchant(lines, kinds):
+    for line, kind in zip(lines, kinds):
         letters = sum(1 for ch in line if ch.isalpha())
-        if (letters < 3 or _has(line, HEADER_WORDS) or _is_total(line) or _is_amount(line)
-                or _has(line, TOTAL_WORDS) or _ignored(line)):
+        if letters < 3 or _has(line, HEADER_WORDS) or kind in ("excluded", "weak", "strong", "medium"):
             continue
         name = _CJK_GAP.sub("", " ".join(line.split()))
         if len(name) > MERCHANT_MAX:
@@ -114,75 +134,95 @@ def _merchant(lines):
     return None
 
 
+def _usable(token):
+    """A token as a candidate total: positive, not a discount. Else None."""
+    cents, _, negative = token
+    return cents if cents > 0 and not negative else None
+
+
 def _next_amount(lines, i):
-    """The amount on one of the two lines after a lone total word, skipping a lone "HKD"."""
+    """(cents or None, line) for an amount alone on one of the two lines after a lone label, skipping
+    a lone "HKD". None when there is none."""
     for j in range(i + 1, min(i + 3, len(lines))):
-        line = _DECIMAL_ONE.sub(r"\1.\2", _DECIMAL.sub(r"\1.\2", lines[j]))
-        if _ONLY_AMOUNT.match(line):
-            found = amounts_in(line)
-            return (found[-1], lines[j]) if found else None
-        if not _ONLY_CURRENCY.match(line):
+        if _ONLY_AMOUNT.match(_normal(lines[j])):
+            found = _tokens(lines[j])
+            return (_usable(found[-1]), lines[j]) if found else None
+        if not _ONLY_CURRENCY.match(lines[j]):
             return None
     return None
 
 
 def _line_amount(lines, i):
-    """(cents, line) for the amount on line i, else on one of the two lines after it, else None."""
-    found = amounts_in(lines[i])
+    """(cents, line) for the amount on labelled line i (its last amount), else on one of the two lines
+    after it. None when there is none or it is zero or negative."""
+    found = _tokens(lines[i])
     if found:
-        return found[-1], lines[i]
+        cents = _usable(found[-1])
+        return (cents, lines[i]) if cents else None
     nxt = _next_amount(lines, i)
-    return (nxt[0], f"{lines[i]} {nxt[1]}") if nxt else None
+    return (nxt[0], f"{lines[i]} {nxt[1]}") if nxt and nxt[0] else None
 
 
-def _subtotal_plus_service(lines):
-    """No total line: subtotal + service charge (the last of each), rounded to the nearest dollar."""
-    subtotal = service = None
-    for i, line in enumerate(lines):
-        upper = line.upper()
-        if _SUBTOTAL.search(upper) or _has(line, ("SUBTOTAL", "SUB TOTAL", "SUB-TOTAL", "小計", "小计")):
-            subtotal = _line_amount(lines, i) or subtotal
-        elif _has(line, SERVICE_WORDS) and not _ignored(line):
-            service = _line_amount(lines, i) or service
-    if not subtotal or not service:
-        return None
-    cents = (subtotal[0] + service[0] + 50) // 100 * 100
-    if not 0 < cents <= MAX_CENTS:
-        return None
-    return cents, f"{subtotal[1]} + {service[1]}"
+def _pick(candidates, paid):
+    """The last candidate a payment line confirms, else the last one."""
+    confirmed = [c for c in candidates if c[0] in paid]
+    return (confirmed or candidates)[-1]
+
+
+def _most_frequent(pairs):
+    """(cents, line) printed most often; ties go to the larger amount; the line is its last one."""
+    counts = Counter(cents for cents, _ in pairs)
+    best = max(counts, key=lambda cents: (counts[cents], cents))
+    return best, [line for cents, line in pairs if cents == best][-1]
+
+
+def _answer(found, amount=None, line=None, merchant=None, guess=False, reason=None):
+    result = {"found": found, "amount": amount, "line": line, "merchant": merchant, "guess": guess}
+    if not found:
+        result["reason"] = reason
+    return result
 
 
 def parse_receipt(text):
     """{"found", "amount" (cents or None), "line" (the line used or None), "merchant" (or None),
-    "guess" (True when no total line was found and the largest price is offered instead)}."""
+    "guess" (True when no label gives the total and a best guess is offered)}, plus "reason"
+    ("no_amounts" or "no_total") when nothing is found."""
     if not isinstance(text, str):
         raise ValueError("Send the receipt text.")
     if len(text) > MAX_TEXT:
         raise ValueError("The receipt text is too long.")
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    total = amount = None
-    for i, line in enumerate(lines):
-        strong = _is_total(line)
-        if not strong and not _is_amount(line):
-            continue
-        found = _line_amount(lines, i)
-        if found and strong:
-            total = found
-        elif found:
-            amount = found
-    best = total or amount
-    merchant = _merchant(lines)
-    if best is not None:
-        return {"found": True, "amount": best[0], "line": best[1], "merchant": merchant, "guess": False}
-    guess = _subtotal_plus_service(lines)
-    if guess is not None:
-        return {"found": True, "amount": guess[0], "line": guess[1], "merchant": merchant, "guess": True}
-    for line in lines:
-        if _ignored(line):
-            continue
-        for cents in _amounts(line, priced_only=True):
-            if guess is None or cents >= guess[0]:
-                guess = (cents, line)
-    if guess is None:
-        return {"found": False, "amount": None, "line": None, "merchant": merchant, "guess": False}
-    return {"found": True, "amount": guess[0], "line": guess[1], "merchant": merchant, "guess": True}
+    kinds = [_kind(line) for line in lines]
+    merchant = _merchant(lines, kinds)
+    labelled = {"strong": [], "medium": [], "weak": []}
+    paid = []  # (cents, line) read on payment lines
+    for i, (line, kind) in enumerate(zip(lines, kinds)):
+        if kind in labelled:
+            found = _line_amount(lines, i)
+            if found:
+                labelled[kind].append(found)
+        elif kind == "payment":
+            paid += [(cents, line) for cents, price, negative in _tokens(line) if price and cents > 0 and not negative]
+    paid_cents = {cents for cents, _ in paid}
+    for kind in ("strong", "medium"):
+        if labelled[kind]:
+            cents, line = _pick(labelled[kind], paid_cents)
+            return _answer(True, cents, line, merchant)
+    weak = [c for c in labelled["weak"] if c[0] in paid_cents]
+    if weak:
+        return _answer(True, weak[-1][0], weak[-1][1], merchant)
+
+    # No label gives the total: a best guess, only from a text with enough prices in it.
+    if sum(1 for line in lines for _, price, _ in _tokens(line) if price) < MIN_PRICES:
+        return _answer(False, merchant=merchant, reason="no_amounts")
+    if paid:
+        cents, line = _most_frequent(paid)
+    elif labelled["weak"]:
+        cents, line = labelled["weak"][-1]
+    else:
+        prices = [(cents, line) for line, kind in zip(lines, kinds) if kind != "excluded"
+                  for cents, price, negative in _tokens(line) if price and cents > 0 and not negative]
+        if not prices:
+            return _answer(False, merchant=merchant, reason="no_total")
+        cents, line = _most_frequent(prices)
+    return _answer(True, cents, line, merchant, guess=True)

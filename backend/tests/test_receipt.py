@@ -91,7 +91,7 @@ class OcrNoise(Totals):
         self.check("Sample Shop\nSUBT0TAL 40.00\nService 4.00\nT0TAL 44.00", 4400)
 
     def test_total_quantity_is_not_a_total(self):
-        result = self.check("Sample Shop\nBurger 48.00\nTotal Qty 3", 4800)
+        result = self.check("Sample Shop\nBurger 48.00\nFries 8.00\nTotal Qty 3", 4800)
         self.assertTrue(result["guess"])
 
     def test_best_guess_is_the_largest_price(self):
@@ -158,30 +158,24 @@ class HongKongRestaurant(unittest.TestCase):
             with self.subTest(line=line):
                 self.check(f"Sample Shop\n{line}", 103200 if "032" in line else 9380)
 
-    def test_no_total_subtotal_plus_service_charge_is_a_best_guess(self):
-        # The big "Amount" line misread: subtotal + service charge, rounded to the dollar.
+    def test_amount_misread_the_subtotal_is_a_best_guess(self):
+        # The big "Amount" line misread: the subtotal is the weak fallback (never added to the service charge).
         text = self.LINES + "Subtotal $938.0\nService Charge(18%) $93.8\nAmount gol\nI"
-        result = self.check(text, 103200)
+        result = self.check(text, 93800)
         self.assertTrue(result["guess"])
-        self.assertIn("Subtotal", result["line"])
-        self.assertIn("Service", result["line"])
+        self.assertEqual(result["line"], "Subtotal $938.0")
 
-    def test_subtotal_and_service_charge_on_the_next_lines(self):
-        result = self.check("Sample Cafe\nSubtotal\n$938.0\nService Charge(10%)\n$93.8", 103200)
+    def test_subtotal_on_the_next_line_is_a_best_guess(self):
+        result = self.check("Sample Cafe\nSubtotal\n$938.0\nService Charge(10%)\n$93.8", 93800)
         self.assertTrue(result["guess"])
 
-    def test_subtotal_plus_service_rounds_to_the_nearest_dollar(self):
-        self.assertEqual(self.check("Sample Cafe\nSubtotal 100.00\nService charge 10.40", 11000)["amount"], 11000)
-        self.assertEqual(self.check("Sample Cafe\nSub total 100.00\nSERVICE 10.50", 11100)["amount"], 11100)
-
-    def test_a_total_wins_over_subtotal_plus_service(self):
+    def test_a_total_wins_over_subtotal_and_service(self):
         result = self.check("Sample Cafe\nSubtotal 100.00\nService 10.00\nTotal 110.50", 11050)
         self.assertFalse(result["guess"])
 
-    def test_largest_price_with_one_decimal_is_a_guess(self):
-        result = self.check(self.LINES + "Thank You", 38800)
+    def test_most_frequent_price_with_one_decimal_is_a_guess(self):
+        result = self.check(self.LINES + "Thank You", 17800)
         self.assertTrue(result["guess"])
-        self.assertEqual(result["line"], "1 BBQ Pork Rib 1KG $388.0")
 
     def test_what_the_phone_read_finds_nothing(self):
         # The left column only, as the iPhone read it: no price at all, so nothing is invented.
@@ -192,6 +186,143 @@ class HongKongRestaurant(unittest.TestCase):
         self.assertIsNone(result["amount"])
 
 
+class RealReceipts(unittest.TestCase):
+    """Anonymised copies of real receipts that failed (no real card numbers, refs or phones)."""
+
+    check = Totals.check
+
+    FUSION = ("fusion\nHKUST\n124715 能量果凍-白葡萄味 1 $15.90\n5% OFF (SU-SCO) -$0.80\n1 小計 $15.10\n"
+              "MASTER $15.10\n找續 $0.00\nGP.MASTERCARD $15.10\nAPP Label:DEBIT MASTERCARD\n25/11/26 15:25:28")
+    BOHEME = ("Cafe Boheme\nOrder Time: 2026-11-22 12:21:16\nApple Juice $38.0\nAqua Panna 750ML $68.0\n"
+              "Truffle & Camembert Pizza $178.0\nBBQ Pork Rib 1KG $388.0\nSeafood Linguine $178.0\n"
+              "Marshmallow Banana Pizza $88.0\nSubtotal $938.0\nService Charge(10%) $93.8\nAmount $1,032.0")
+    SEEN = ("HET)\ncafe  Boher\ne\nime: 202\n3 50261122122116E 7\nApple Juice\nAqua Panna 758ML\n"
+            "r   e & Camembert Pizz\n) Pork Rlb 1KG\nfood Linguine\nMarshmallow Banana Pizza\nSubtotal\nService")
+
+    def test_fusion_subtotal_confirmed_by_the_card_line(self):
+        result = parse_receipt(self.FUSION)
+        self.assertEqual((result["found"], result["amount"], result["guess"]), (True, 1510, False))
+        self.assertIn("小計", result["line"])
+        self.assertEqual(result["merchant"].lower(), "fusion")
+
+    def test_fusion_without_the_subtotal_word_guesses_the_paid_amount(self):
+        # 小計 misread: 15.10 is printed three times, 15.90 (before the discount) once.
+        result = self.check(self.FUSION.replace("小計", "小言"), 1510)
+        self.assertTrue(result["guess"])
+
+    def test_cafe_boheme_amount_beats_the_subtotal(self):
+        result = self.check(self.BOHEME, 103200, "Cafe Boheme")
+        self.assertFalse(result["guess"])
+        self.assertEqual(result["line"], "Amount $1,032.0")
+
+    def test_subtotal_never_beats_amount_whatever_the_order(self):
+        for text in ("Shop\nAmount $1,032.0\nSubtotal $938.0", "Shop\nSubtotal $938.0\nVISA $938.0\nAmount $1,032.0"):
+            with self.subTest(text=text):
+                self.assertEqual(self.check(text, 103200)["guess"], False)
+
+    def test_what_the_reader_saw_has_no_amounts(self):
+        result = parse_receipt(self.SEEN)
+        self.assertFalse(result["found"])
+        self.assertIsNone(result["amount"])
+        self.assertEqual(result["reason"], "no_amounts")
+
+    def test_cash_tendered_and_change(self):
+        text = "Sample Deli\nSandwich $40.00\nCoffee $22.50\nTOTAL $62.50\nCASH TENDERED $100.00\nCHANGE $37.50"
+        self.assertFalse(self.check(text, 6250, "Sample Deli")["guess"])
+
+    def test_total_with_a_discount(self):
+        text = "Sample Shop\nBurger $48.00\nCoupon -$10.00\nTOTAL $38.00\nVISA $38.00"
+        result = self.check(text, 3800)
+        self.assertFalse(result["guess"])
+        self.assertEqual(result["line"], "TOTAL $38.00")
+
+
+class Labels(unittest.TestCase):
+    check = Totals.check
+
+    def test_strong_labels(self):
+        for word in ("TOTAL", "GRAND TOTAL", "AMOUNT DUE", "TOTAL DUE", "應付", "總計", "总计", "合計", "合计", "總額"):
+            with self.subTest(word=word):
+                result = self.check(f"Sample Shop\nItem $30.00\nItem $9.00\n{word} $39.00\nAmount $50.00", 3900)
+                self.assertFalse(result["guess"])
+
+    def test_payment_line_confirms_one_of_two_totals(self):
+        # "TOTAL SAVED" is last, but the card paid the other one.
+        self.assertFalse(self.check("Sample Shop\nTOTAL 48.00\nTOTAL SAVED 5.00\nVISA 48.00", 4800)["guess"])
+
+    def test_subtotal_confirmed_by_a_payment_line_is_sure(self):
+        for pay in ("MASTERCARD", "VISA", "AMEX", "UNIONPAY", "OCTOPUS", "八達通", "PAYME", "ALIPAY", "WECHAT PAY",
+                    "信用卡", "扣賬卡", "EPS"):
+            with self.subTest(pay=pay):
+                text = f"Sample Shop\nItem $30.00\nItem $12.00\nSubtotal $42.00\n{pay} $42.00"
+                self.assertFalse(self.check(text, 4200)["guess"])
+
+    def test_subtotal_alone_is_a_guess(self):
+        self.assertTrue(self.check("Sample Shop\nItem $30.00\nItem $12.00\n小計 $42.00", 4200)["guess"])
+
+
+class Excluded(unittest.TestCase):
+    check = Totals.check
+
+    def test_cash_and_change_lines_never_count(self):
+        for line in ("CASH $100.00", "現金 $100.00", "TENDERED $100.00", "CHANGE $100.00", "找續 $100.00",
+                     "找贖 $100.00", "實收 $100.00"):
+            with self.subTest(line=line):
+                self.check(f"Sample Shop\nItem $20.00\nItem $8.00\n{line}", 2000)
+
+    def test_negative_amounts_never_count(self):
+        for line in ("Coupon -$50.00", "Coupon $-50.00", "Coupon -50.00", "Coupon - HK$50.00"):
+            with self.subTest(line=line):
+                self.check(f"Sample Shop\n{line}\nItem $12.00\nItem $8.00", 1200)
+
+    def test_zero_amounts_never_count(self):
+        self.check("Sample Shop\nItem $12.00\nItem $8.00\nRounding $0.00\nTOTAL $0.00", 1200)
+
+
+class BestGuess(unittest.TestCase):
+    check = Totals.check
+
+    def test_ids_phones_dates_times_and_cards_are_not_amounts(self):
+        text = ("Sample Shop\nTEL:27191463\n535389******2423\n25/11/26 15:25:28\nRef 4820031177\n"
+                "Table 12\nTea $12.00\nBun $9.50")
+        result = self.check(text, 1200)
+        self.assertTrue(result["guess"])
+
+    def test_the_amount_printed_most_often_wins(self):
+        self.check("Sample Shop\nItem $5.00\nItem $12.00\nPaid $5.00", 500)
+
+    def test_a_tie_goes_to_the_larger_amount(self):
+        self.check("Sample Shop\nA $5.00\nB $7.00\nC $5.00\nD $7.00", 700)
+
+    def test_all_once_the_largest(self):
+        self.check("Sample Shop\nA $5.00\nB $17.50\nC $7.00", 1750)
+
+    def test_a_single_price_is_not_enough(self):
+        result = parse_receipt("Sample Shop\nBurger 48.00\nThank you")
+        self.assertEqual((result["found"], result["reason"]), (False, "no_amounts"))
+
+    def test_prices_all_excluded_is_no_total(self):
+        result = parse_receipt("Sample Shop\nCash $100.00\nChange $37.50")
+        self.assertEqual((result["found"], result["reason"]), (False, "no_total"))
+
+    def test_plain_numbers_are_not_prices(self):
+        self.assertEqual(parse_receipt("Sample Shop\nTable 12\nGuests 4\nShop 8")["reason"], "no_amounts")
+
+
+class Formats(unittest.TestCase):
+    check = Totals.check
+
+    def test_number_formats(self):
+        for amount, cents in (("$1,032.0", 103200), ("$938.0", 93800), ("1.032,00", 103200), ("HK$ 38", 3800),
+                              ("38,00 $HK", 3800), ("$15.10", 1510), ("HKD 1,234", 123400), ("12.345,60", 1234560)):
+            with self.subTest(amount=amount):
+                self.assertFalse(self.check(f"Sample Shop\nTOTAL {amount}", cents)["guess"])
+
+    def test_currency_marks_make_whole_numbers_prices(self):
+        self.check("Sample Shop\nTea HK$ 38\nBun HK$ 12", 3800)
+        self.check("Sample Shop\nTea 38,00 $HK\nBun 12,00 $HK", 3800)
+
+
 class NothingFound(unittest.TestCase):
     def test_no_total_word_and_no_price(self):
         result = parse_receipt("Sample Shop\nThank you\nTable 12")
@@ -199,8 +330,9 @@ class NothingFound(unittest.TestCase):
         self.assertIsNone(result["amount"])
         self.assertEqual(result["merchant"], "Sample Shop")
 
-    def test_only_subtotal(self):
-        self.assertFalse(parse_receipt("Shop\nSubtotal 40.00\n小計 40.00")["found"])
+    def test_only_subtotal_is_a_best_guess(self):
+        result = parse_receipt("Shop\nSubtotal 40.00\n小計 40.00")
+        self.assertEqual((result["found"], result["amount"], result["guess"]), (True, 4000, True))
 
     def test_empty_and_garbage(self):
         for text in ("", "   \n  ", "@@@ ### ..."):
