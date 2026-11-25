@@ -12,7 +12,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from . import assistant, cooked, fit, money, places, prices, projection, ranges, receipt, rewards
+from . import assistant, backup, cooked, fit, money, places, prices, projection, ranges, receipt, rewards
 from .dates import FixedClock, monday_of, week_dates
 from .store import INBOX_SOURCES, REQUEST_ID, WALLET_SOURCE
 from .validate import MAX_CENTS, clean_note, parse_amount
@@ -220,6 +220,8 @@ class Service:
         state["campus"] = _campus(s)
         state["campuses"] = [{"id": c["id"], "name": c["name"]} for c in places.CAMPUSES.values()]
         state["rewards"] = self._rewards(s, today, state["savingsPot"]["total"]) if current else None
+        # No budget data at all on the server: a new phone, or a wiped disk the app can restore.
+        state["fresh"] = s.is_fresh()
         return state
 
     @staticmethod
@@ -570,6 +572,27 @@ class Service:
                 raise ServiceError("Only this week's payments can be undone. Past weeks are read-only.")
             s.void_payment(payment_id)
             return {"undone": payment, "state": self._build(s, mode, today, week)}
+
+    # backup and restore (iPhone app): the phone keeps the copy, the server can be rebuilt from it
+    def backup(self, device):
+        """Everything stored in this phone's live book, as one document (backup.py)."""
+        with self._books["live"].session() as s:
+            tables = s.export_tables(backup.META_KEYS)
+        return backup.document(tables, device, datetime.now(timezone.utc).isoformat(timespec="seconds"))
+
+    def restore(self, device, doc):
+        """Merge a backup document of this phone back into its live book, in one transaction.
+
+        Checks the whole document first; any problem refuses it and writes nothing.
+        Returns {"added": rows added per table, "state"}.
+        """
+        try:
+            tables = backup.check(doc, device)
+        except backup.Invalid as exc:
+            raise ServiceError(str(exc)) from None
+        with self._books["live"].session(write=True) as s:
+            added = s.merge_tables(tables)
+        return {"added": added, "state": self.get_state()}
 
     # feedback about the app
     def add_feedback(self, rating, text):

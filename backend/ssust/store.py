@@ -84,7 +84,7 @@ _SCHEMA_V5 = [
 ]
 
 
-def _merchant_key(merchant):
+def merchant_key(merchant):
     return " ".join(str(merchant).split()).casefold()
 
 
@@ -368,7 +368,7 @@ class Session:
         return cursor.rowcount == 1
 
     def merchant_fund(self, merchant):
-        row = self._con.execute("SELECT fund FROM merchant_funds WHERE merchant = ?", (_merchant_key(merchant),)).fetchone()
+        row = self._con.execute("SELECT fund FROM merchant_funds WHERE merchant = ?", (merchant_key(merchant),)).fetchone()
         return None if row is None else row[0]
 
     def remember_merchant_fund(self, merchant, fund):
@@ -377,7 +377,7 @@ class Session:
             raise ValueError(f"Unknown category: {fund!r}.")
         self._con.execute(
             "INSERT INTO merchant_funds (merchant, fund) VALUES (?, ?) "
-            "ON CONFLICT(merchant) DO UPDATE SET fund = excluded.fund", (_merchant_key(merchant), fund))
+            "ON CONFLICT(merchant) DO UPDATE SET fund = excluded.fund", (merchant_key(merchant), fund))
 
     def payment_dates(self):
         """Every day with at least one payment that still counts, oldest first."""
@@ -415,6 +415,172 @@ class Session:
         rows = self._con.execute("SELECT id, rating, text, created_at FROM feedback ORDER BY id DESC LIMIT ?",
                                  (limit,))
         return [{"id": r[0], "rating": r[1], "text": r[2], "createdAt": r[3]} for r in rows]
+
+    # backup (iPhone app): every row of this book, and a merge of such rows back in
+    def is_fresh(self):
+        """True when the book holds no budget data at all (a new phone, or a wiped server).
+
+        Incoming payments to review and meta don't count: Apple Pay can add those to an empty server.
+        """
+        tables = ("weeks", "payments", "merchant_funds", "visits", "feedback")
+        return not any(self._con.execute(f"SELECT EXISTS (SELECT 1 FROM {table})").fetchone()[0] for table in tables)
+
+    def export_tables(self, meta_keys):
+        """Every row of this book in the backup shape (backup.py), oldest first, ids kept."""
+        meta = {}
+        for key in meta_keys:
+            value = self.get_meta(key)
+            if value is not None:
+                meta[key] = value
+        weeks = [{"weekStart": row[0], **dict(zip(FUNDS, row[1:]))} for row in self._con.execute(
+            f"SELECT week_start, {', '.join(FUNDS)} FROM weeks ORDER BY week_start")]
+        n = len(FUNDS)
+        payments = [{
+            "id": row[0], "date": row[1], "amount": row[2], "category": row[3], "note": row[4],
+            "from": dict(zip(FUNDS, row[5:5 + n])), "uncovered": row[5 + n], "createdAt": row[6 + n],
+            "requestId": row[7 + n], "voidedAt": row[8 + n],
+        } for row in self._con.execute(
+            f"SELECT id, date, amount, category, note, {', '.join(f'from_{fund}' for fund in FUNDS)}, uncovered, "
+            "created_at, request_id, voided_at FROM payments ORDER BY id")]
+        merchant_funds = [{"merchant": row[0], "fund": row[1]} for row in self._con.execute(
+            "SELECT merchant, fund FROM merchant_funds ORDER BY merchant")]
+        visits = [{"paymentId": row[0], "campus": row[1], "placeId": row[2], "name": row[3], "within": bool(row[4])}
+                  for row in self._con.execute(
+                      "SELECT payment_id, campus, place_id, name, within FROM visits ORDER BY payment_id")]
+        feedback = [{"id": row[0], "rating": row[1], "text": row[2], "createdAt": row[3]} for row in self._con.execute(
+            "SELECT id, rating, text, created_at FROM feedback ORDER BY id")]
+        return {"meta": meta, "weeks": weeks, "payments": payments, "inbox": self._inbox_rows("1 = 1", ()),
+                "merchantFunds": merchant_funds, "visits": visits, "feedback": feedback}
+
+    def _free(self, table, row_id):
+        return self._con.execute(f"SELECT 1 FROM {table} WHERE id = ?", (row_id,)).fetchone() is None
+
+    def _same_payment(self, p, claimed):
+        """The id of a row that is this backup payment already, or None: same request id, else the
+        same content (an undo done on the server since is kept, so voided_at is not compared).
+        A row in `claimed` already matched another backup row, so two equal payments stay two."""
+        if p["requestId"] is not None:
+            row = self._con.execute("SELECT id FROM payments WHERE request_id = ?", (p["requestId"],)).fetchone()
+            return None if row is None else row[0]
+        same = " AND ".join(f"from_{fund} = ?" for fund in FUNDS)
+        rows = self._con.execute(
+            "SELECT id FROM payments WHERE request_id IS NULL AND date = ? AND amount = ? AND category = ? "
+            f"AND note = ? AND uncovered = ? AND created_at = ? AND {same} ORDER BY (id = ?) DESC, id",
+            (p["date"], p["amount"], p["category"], p["note"], p["uncovered"], p["createdAt"],
+             *(p["from"][fund] for fund in FUNDS), p["id"]))
+        return next((row[0] for row in rows if row[0] not in claimed), None)
+
+    def _insert_payment(self, p, keep_id):
+        columns = ["date", "amount", "category", "note", *(f"from_{fund}" for fund in FUNDS),
+                   "uncovered", "created_at", "request_id", "voided_at"]
+        values = [p["date"], p["amount"], p["category"], p["note"], *(p["from"][fund] for fund in FUNDS),
+                  p["uncovered"], p["createdAt"], p["requestId"], p["voidedAt"]]
+        if keep_id:
+            columns.insert(0, "id")
+            values.insert(0, p["id"])
+        cursor = self._con.execute(
+            f"INSERT INTO payments ({', '.join(columns)}) VALUES ({', '.join('?' * len(values))})", values)
+        return cursor.lastrowid
+
+    def _insert_inbox(self, item, payment_id, keep_id):
+        columns = ["external_id", "source", "amount_cents", "merchant", "card", "received_at", "status", "payment_id"]
+        values = [item["externalId"], item["source"], item["amount"], item["merchant"], item["card"],
+                  item["receivedAt"], item["status"], payment_id]
+        if keep_id:
+            columns.insert(0, "id")
+            values.insert(0, item["id"])
+        self._con.execute(f"INSERT INTO inbox ({', '.join(columns)}) VALUES ({', '.join('?' * len(values))})", values)
+
+    def _insert_feedback(self, row, keep_id):
+        if keep_id:
+            self._con.execute("INSERT INTO feedback (id, rating, text, created_at) VALUES (?, ?, ?, ?)",
+                              (row["id"], row["rating"], row["text"], row["createdAt"]))
+        else:
+            self._con.execute("INSERT INTO feedback (rating, text, created_at) VALUES (?, ?, ?)",
+                              (row["rating"], row["text"], row["createdAt"]))
+
+    def merge_tables(self, tables):
+        """Add the backup rows (already checked by backup.check) that this book does not have.
+
+        Rows already here always win and are never changed. A backup row keeps its id when that id
+        is free, else it gets a new one and the rows pointing at it (visits, inbox) follow. Payments
+        match by request id, else by content; inbox items by external id; feedback by content.
+        Merging the same tables again adds nothing. Runs inside the caller's write session, so a
+        failure leaves nothing behind. Returns how many rows were added per table.
+        """
+        self._writing()
+        added = dict.fromkeys(("meta", "weeks", "payments", "inbox", "merchantFunds", "visits", "feedback"), 0)
+        for key, value in sorted(tables["meta"].items()):
+            if self.get_meta(key) is None:
+                self.set_meta(key, value)
+                added["meta"] += 1
+        columns = ", ".join(FUNDS)
+        for week in tables["weeks"]:
+            cursor = self._con.execute(
+                f"INSERT OR IGNORE INTO weeks (week_start, {columns}) VALUES (?{', ?' * len(FUNDS)})",
+                (_monday(week["weekStart"]), *(_cents(week[fund], "Opening") for fund in FUNDS)))
+            added["weeks"] += cursor.rowcount
+
+        # Rows with a free id go in first with that id; the others get new ids afterwards, above every
+        # id used so far, so a new id can never take one a later backup row still needs.
+        ids = {}
+        later = []
+        for p in tables["payments"]:
+            found = self._same_payment(p, set(ids.values()))
+            if found is not None:
+                ids[p["id"]] = found
+            elif self._free("payments", p["id"]):
+                ids[p["id"]] = self._insert_payment(p, keep_id=True)
+                added["payments"] += 1
+            else:
+                later.append(p)
+        for p in later:
+            ids[p["id"]] = self._insert_payment(p, keep_id=False)
+            added["payments"] += 1
+
+        later = []
+        for item in tables["inbox"]:
+            if self._con.execute("SELECT 1 FROM inbox WHERE external_id = ?", (item["externalId"],)).fetchone():
+                continue
+            payment_id = None if item["paymentId"] is None else ids[item["paymentId"]]
+            if self._free("inbox", item["id"]):
+                self._insert_inbox(item, payment_id, keep_id=True)
+                added["inbox"] += 1
+            else:
+                later.append((item, payment_id))
+        for item, payment_id in later:
+            self._insert_inbox(item, payment_id, keep_id=False)
+            added["inbox"] += 1
+
+        for row in tables["merchantFunds"]:
+            cursor = self._con.execute("INSERT OR IGNORE INTO merchant_funds (merchant, fund) VALUES (?, ?)",
+                                       (row["merchant"], row["fund"]))
+            added["merchantFunds"] += cursor.rowcount
+        for visit in tables["visits"]:
+            cursor = self._con.execute(
+                "INSERT OR IGNORE INTO visits (payment_id, campus, place_id, name, within) VALUES (?, ?, ?, ?, ?)",
+                (ids[visit["paymentId"]], visit["campus"], visit["placeId"], visit["name"], 1 if visit["within"] else 0))
+            added["visits"] += cursor.rowcount
+
+        later = []
+        claimed = set()
+        for row in tables["feedback"]:
+            same = self._con.execute("SELECT id FROM feedback WHERE rating = ? AND text = ? AND created_at = ? "
+                                     "ORDER BY (id = ?) DESC, id", (row["rating"], row["text"], row["createdAt"], row["id"]))
+            found = next((r[0] for r in same if r[0] not in claimed), None)
+            if found is not None:
+                claimed.add(found)
+                continue
+            if self._free("feedback", row["id"]):
+                self._insert_feedback(row, keep_id=True)
+                claimed.add(row["id"])
+                added["feedback"] += 1
+            else:
+                later.append(row)
+        for row in later:
+            self._insert_feedback(row, keep_id=False)
+            added["feedback"] += 1
+        return added
 
     # demo
     def reset(self):

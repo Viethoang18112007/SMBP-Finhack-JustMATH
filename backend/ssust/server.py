@@ -29,6 +29,8 @@ from .validate import parse_amount
 HOST = "127.0.0.1"
 PORT = 8765
 MAX_BODY = 4096
+# POST /api/restore only: a whole phone backup (about 3,000 payments). Every other route keeps MAX_BODY.
+MAX_RESTORE_BODY = 1_000_000
 FRONTEND = Path(__file__).resolve().parent.parent.parent / "frontend"
 TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -241,6 +243,12 @@ class Handler(BaseHTTPRequestHandler):
         device = self.device
         return self.server.service if device is None else self.server.device_service(device)
 
+    def phone_service(self):
+        """The calling phone's own Service. Backup and restore exist only for the iPhone app."""
+        if self.device is None:
+            raise BadRequest("Backup and restore are for the SSUST iPhone app only.")
+        return self.service
+
     def do_GET(self):
         self.run(self.route_get)
 
@@ -261,14 +269,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    def read_json(self):
+    def read_json(self, limit=MAX_BODY):
         if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
             raise BadRequest("Send JSON.")
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             raise BadRequest("Could not read the request.") from None
-        if length <= 0 or length > MAX_BODY:
+        if length <= 0 or length > limit:
             raise BadRequest("Request is empty or too large.")
         raw = self.rfile.read(length)
         try:
@@ -284,7 +292,12 @@ class Handler(BaseHTTPRequestHandler):
         url = urlsplit(self.path)
         path = unquote(url.path)
         query = parse_qs(url.query, keep_blank_values=True)
-        if path == "/api/state":
+        if path == "/api/ping":
+            # A cheap wake-up call for a sleeping host: no data, no phone header needed.
+            self.send_json({"ok": True})
+        elif path == "/api/backup":
+            self.send_json(self.phone_service().backup(self.device))
+        elif path == "/api/state":
             week = query.get("week", [None])[0]
             self.send_json(self.service.get_state(week))
         elif path == "/api/places":
@@ -317,6 +330,10 @@ class Handler(BaseHTTPRequestHandler):
             "/api/feedback": self.post_feedback,
             "/api/shortcut/wallet": self.post_wallet,
         }
+        if path == "/api/restore":
+            service = self.phone_service()  # before reading the body: no phone, no 1 MB read
+            self.send_json(service.restore(self.device, self.read_json(MAX_RESTORE_BODY)))
+            return
         route = routes.get(path)
         if route is None:
             self.send_error_json(404, "Not found.")

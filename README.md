@@ -187,7 +187,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (787 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (815 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 
@@ -379,7 +379,7 @@ flowchart LR
 
 ## API
 
-All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: application/json`, at most 4 KB). Errors come back as `{"error": "..."}` with status 400 (bad input) or 500 (anything else, without details).
+All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: application/json`, at most 4 KB; only `POST /api/restore` takes up to 1 MB). Errors come back as `{"error": "..."}` with status 400 (bad input) or 500 (anything else, without details).
 
 | Method and path | Body / query | Does |
 | --- | --- | --- |
@@ -395,6 +395,9 @@ All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: 
 | `POST /api/shortcut/wallet` | `{"amount": "HK$38.00" or 38, "merchant"?: "...", "card"?: "..."}` (iOS Shortcuts, with `X-SSUST-Device`) | Add a real Apple Pay payment to To review (source `wallet`). Every call is a new item |
 | `GET /api/widget` | (with `X-SSUST-Device`) | JSON for the SSUST home screen widget: left today (cents and HK$ text), spent against the allowance, every fund, today's last 3 payments, streak and shape, how many wait for review |
 | `GET /api/shortcut/today` | (with `X-SSUST-Device`) | Plain text, one line: left today, the streak, how many wait for review |
+| `GET /api/backup` | (with `X-SSUST-Device`) | Everything stored for this phone as one document: `format`, `schemaVersion`, `device`, `exportedAt`, `revision` (sha256 of the tables) and `tables` (`meta`, `weeks`, `payments`, `inbox`, `merchantFunds`, `visits`, `feedback`), money in integer cents |
+| `POST /api/restore` | that document (with the same `X-SSUST-Device`, at most 1 MB) | Merge it back in one transaction: rows already on the server are kept, missing ones are added (payments by request id or content, inbox items by external id). Checked first, field by field; anything wrong refuses the whole document. Restoring twice changes nothing. Answers `{"added", "state"}` |
+| `GET /api/ping` | | `{"ok": true}`. Wakes a sleeping host; reads no data |
 | `POST /api/feedback` | `{"rating": 1 to 5, "text"?: "<at most 500 characters>"}` | Save feedback about the app; answers with the latest feedback |
 | `POST /api/assistant/parse` | `{"text": "$50 KFC dinner"}` | `{"ok", "amount" (cents), "category", "note", "reason", "confident", "typo", "chain"}` or `{"ok": false, "error"}`. Reads only |
 | `POST /api/receipt/parse` | `{"text": "<OCR text, at most 3500 characters>"}` | `{"found", "amount" (cents or null), "line", "merchant", "entry"}` where `entry` is the parse_entry result for the merchant (fund, reason, typo). Reads only: nothing is saved |
@@ -403,7 +406,7 @@ All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: 
 | `POST /api/inbox/confirm` | `{"id": 3, "category": "main", "choice"?: ...}` | Confirm it into a fund through the same logic as `/api/payments` (same `needsConfirm` step) |
 | `POST /api/inbox/dismiss` | `{"id": 3}` | Dismiss it; nothing is saved |
 
-The state also carries `rewards` (`streak`, `lastWeek`, `medals`, `badges`), `projection`, `insights`, `inbox` (pending items with `suggestedFund`, `suggestedReason` and `typo`) and `connected`. Food places can carry `priceRange` (`min`, `max`, `sourceName`, `sourceUrl`, `checkedOn`, `note`) with the statuses `range_fits`, `range_may`, `range_over`, or `chain` (`chain`, `what`, `lowCents`, `highCents`, `sources`, `checkedOn`, `needsCheck`) with `chain_fits`, `chain_tight`, `chain_over`; `budget` adds `rangeRecords` and `chainRecords`.
+The state also carries `fresh` (true when the server holds no budget data for this book: a new phone or a wiped disk), `rewards` (`streak`, `lastWeek`, `medals`, `badges`), `projection`, `insights`, `inbox` (pending items with `suggestedFund`, `suggestedReason` and `typo`) and `connected`. Food places can carry `priceRange` (`min`, `max`, `sourceName`, `sourceUrl`, `checkedOn`, `note`) with the statuses `range_fits`, `range_may`, `range_over`, or `chain` (`chain`, `what`, `lowCents`, `highCents`, `sources`, `checkedOn`, `needsCheck`) with `chain_fits`, `chain_tight`, `chain_over`; `budget` adds `rangeRecords` and `chainRecords`.
 
 Categories are `main`, `snack`, `fixed`, `experience`, `development`. Every other path serves a file from `frontend/`.
 
