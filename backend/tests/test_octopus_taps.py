@@ -410,6 +410,17 @@ class Frontend(unittest.TestCase):
         self.assertIn("receivedLine(", guide)
         self.assertIn("amountUnknown", guide)
 
+    def test_manual_iphone_checklist(self):
+        text = self.read("docs", "OCTOPUS_TEST.md")
+        for word in ("Octopus", "Received:", "To review", "Left to spend today", "twice", "bank card"):
+            self.assertIn(word, text)
+
+    def test_docs_do_not_call_octopus_automatic(self):
+        readme = self.read("README.md")
+        self.assertIn("**Octopus is not:**", readme)
+        self.assertIn("docs/OCTOPUS_TEST.md", readme)
+        self.assertIn("Octopus is not automatic", self.read("docs", "DEMO_SCRIPT.md"))
+
 
 if __name__ == "__main__":
     unittest.main()

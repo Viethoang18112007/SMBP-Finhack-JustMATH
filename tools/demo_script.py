@@ -99,6 +99,8 @@ def markdown(timeline):
         "## Honest limits to keep in the narration",
         "",
         "- Connected payments (Apple Pay, Octopus, HSBC) are simulated: sample payments, no card, no bank.",
+        "- In the iPhone app, bank cards in Apple Pay arrive by themselves through a Shortcuts automation.",
+        "  Octopus is not automatic: iOS gives no amount for an Octopus tap, so you type it in To review.",
         "- The Assistant and the Cooked score are offline rules, not AI.",
         "- The receipt is a sample image read by offline OCR; OCR can misread, so you confirm before saving.",
         "- Prices: each place's own menu range or a chain's published price, with source and date. No",
