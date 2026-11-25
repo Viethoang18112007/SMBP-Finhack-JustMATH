@@ -142,6 +142,33 @@ class WebSide(unittest.TestCase):
         self.assertIn('err.code === "camera_denied"', scan)
         self.assertIn('state.scan = { status: "none", text: read.slice(0, 800), reason: result.reason || "" };', scan)
 
+    def test_a_phone_scan_never_fails_silently(self):
+        scan = self.actions[self.actions.index("export async function scanReceipt"):]
+        scan = scan[:scan.index("\n}\n")]
+        self.assertIn('import { scanFailure } from "./scanerror.js";', self.actions)
+        for stage in ('"plugin"', '"server"'):
+            self.assertIn(f"scanFailure({stage}", scan)
+        self.assertIn('err.code === "no_pages" || err.code === "no_text"', scan)
+        self.assertIn('status: "error", message:', scan)
+        # cancelled stays silent
+        self.assertIn('state.scan = err.code === "cancelled" ? null : { status: "camera_off" };', scan)
+        self.assertIn('"no_pages"', self.scanner)
+        self.assertIn('"no_text"', self.scanner)
+
+    def test_what_the_phone_read_is_kept_for_every_phone_scan(self):
+        scan = self.actions[self.actions.index("export async function scanReceipt"):]
+        scan = scan[:scan.index("\n}\n")]
+        self.assertIn("phone = true;", scan)  # set once the phone has read the text
+        self.assertIn("text: read.slice(0, 800), phone", scan)  # found: the text is kept too
+        add = read("frontend", "js", "screens", "add.js")
+        self.assertIn("What the phone read", add)
+        self.assertIn("What the reader saw", add)  # the web reader, only when nothing was found
+        self.assertIn("scan.phone", add)
+        self.assertIn("scan.message || SCAN_FAILED", add)
+        errors = read("frontend", "js", "scanerror.js")
+        for word in ("document", "window", "import ", "fetch("):
+            self.assertNotIn(word, errors)
+
     def test_buttons(self):
         add = read("frontend", "js", "screens", "add.js")
         render = read("frontend", "js", "render.js")

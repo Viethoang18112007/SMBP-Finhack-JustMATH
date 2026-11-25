@@ -32,8 +32,13 @@ function base64Of(file) {
 }
 
 // The receipt's text: from the document camera when there is no file, else from the picked photo.
-// Rejects with the plugin's error (err.code: cancelled, camera_denied, unavailable, busy, failed, bad_image).
+// Rejects with the plugin's error (err.code: cancelled, camera_denied, unavailable, busy, failed, bad_image),
+// or err.code "no_pages" (the scanner returned no page) or "no_text" (pages, but no text on them).
 export async function readNative(scanner, file) {
   const answer = file ? await scanner.recognize({ image: await base64Of(file) }) : await scanner.scan({});
-  return trimText(textOfPages(answer && answer.pages));
+  const pages = answer && Array.isArray(answer.pages) ? answer.pages : [];
+  if (!pages.length) throw Object.assign(new Error("no pages"), { code: "no_pages" });
+  const text = trimText(textOfPages(pages));
+  if (!text) throw Object.assign(new Error("no text"), { code: "no_text" });
+  return text;
 }

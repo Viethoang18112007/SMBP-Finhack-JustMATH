@@ -6,6 +6,7 @@ import { render, renderToast } from "./render.js";
 import { leaveElement } from "./motion.js";
 import { readTotal } from "./ocr.js";
 import { nativeScanner, readNative } from "./scanner.js";
+import { scanFailure } from "./scanerror.js";
 import { nextTap, reviewDraft, showNotification } from "./inbox.js";
 import { defaultChoice } from "./sheet.js";
 import { applyState, state } from "./store.js";
@@ -95,6 +96,8 @@ export async function scanReceipt(file) {
   render();
   let result = null;
   let read = "";
+  let phone = false; // the phone read the text: it stays visible under the scan row ("What the phone read")
+  const stageError = (message) => Object.assign(new Error(message), { scanStage: true });
   try {
     let scan = null;
     if (scanner) {
@@ -109,9 +112,18 @@ export async function scanReceipt(file) {
           render();
           return;
         }
-        if (!file) throw err; // no picture for the offline reader to fall back on
+        if (err && (err.code === "no_pages" || err.code === "no_text")) throw stageError(scanFailure(err.code, err));
+        if (!file) throw stageError(scanFailure("plugin", err)); // no picture for the offline reader to fall back on
       }
-      if (text !== null) scan = { text, result: await api("/api/receipt/parse", { text }) };
+      if (text !== null) {
+        phone = true;
+        read = text;
+        try {
+          scan = { text, result: await api("/api/receipt/parse", { text }) };
+        } catch (err) {
+          throw stageError(scanFailure("server", err));
+        }
+      }
     }
     if (!scan) {
       scan = await readTotal(file, (text) => api("/api/receipt/parse", { text }), (percent, words) => {
@@ -127,7 +139,7 @@ export async function scanReceipt(file) {
   } catch (err) {
     if (!state.adding) return;
     keepDraft();
-    state.scan = { status: "error" };
+    state.scan = { status: "error", message: err && err.scanStage ? err.message : "", text: phone ? read.slice(0, 800) : null, phone };
     render();
     return;
   }
@@ -140,10 +152,11 @@ export async function scanReceipt(file) {
     if (entry) state.draft.category = entry.category;
     state.error = "";
     state.scan = { status: "found", guess: Boolean(result.guess), line: result.line, merchant: result.merchant, reason: entry ? entry.reason : "",
-      typo: entry && entry.typo ? entry.typo.reason : "" };
+      typo: entry && entry.typo ? entry.typo.reason : "", text: read.slice(0, 800), phone };
   } else {
     // What the reader saw, so a failed photo can be checked (and sent to us) instead of guessed at.
     state.scan = { status: "none", text: read.slice(0, 800), reason: result.reason || "" };
+    state.scan.phone = phone;
   }
   render();
 }
