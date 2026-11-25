@@ -79,6 +79,21 @@ def _category(words, chain):
     return "main", "no clear clue, so Main meals", False
 
 
+def guess_fund(words, chains=()):
+    """(fund, reason, chain) from a merchant name alone, by the same rules as parse_entry. Used when
+    there is no amount yet (a wallet tap without one)."""
+    words = " ".join(str(words).split())[:_MAX_TEXT]
+    chain = _find_chain(words, chains)
+    fund, reason, _ = _category(words, chain)
+    return fund, reason, chain
+
+
+def typo_for(cents, fund, guess, chain):
+    """The typo check for a fund the student picked: the chain's range counts only when the pick is
+    the guess made from that chain (the same rule as parse_entry's own check)."""
+    return check_typo(cents, fund, chain if fund == guess else None)
+
+
 def check_typo(cents, fund, chain=None):
     """A suggestion when the amount looks like a typo, else None: {"reason", "suggestion"}."""
     if chain is not None and cents > chain["high_cents"] * 3:

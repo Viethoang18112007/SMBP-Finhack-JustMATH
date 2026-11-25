@@ -89,7 +89,7 @@ class WalletRoute(DeviceClient):
         self.assertEqual(state["inbox"][0]["card"], "Apple Pay")  # no card name sent
 
     def test_bad_taps_are_refused(self):
-        for body in ({"merchant": "x"}, {"amount": "abc"}, {"amount": "0"}):
+        for body in ({"amount": "abc"}, {"amount": "0"}):  # a merchant alone is a real tap without an amount
             with self.subTest(body=body):
                 self.assertEqual(self.post(body)[0], 400)
         self.assertEqual(self.post({"amount": "38"}, device="bad")[0], 400)

@@ -20,7 +20,7 @@ from .dates import parse_day, week_dates
 from .money import CATEGORIES, FUNDS
 from .validate import MAX_CENTS
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 BOOKS = ("live", "demo")
 MODES = ("live", "demo")
 LIVE_FILE = "ssust.db"
@@ -81,6 +81,24 @@ _SCHEMA_V5 = [
     "name TEXT NOT NULL, within INTEGER NOT NULL CHECK (within IN (0, 1)))",
     "CREATE TABLE feedback (id INTEGER PRIMARY KEY, rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5), "
     "text TEXT NOT NULL, created_at TEXT NOT NULL)",
+]
+
+# Version 6: a wallet tap can arrive without an amount (Octopus in Apple Wallet gives Shortcuts none).
+# amount_cents becomes nullable: NULL = amount not known yet. Only a wallet item that is not
+# confirmed may have it; SQLite cannot relax NOT NULL in place, so the table is rebuilt (ids kept).
+_SCHEMA_V6 = [
+    "ALTER TABLE inbox RENAME TO inbox_v5",
+    "DROP INDEX inbox_by_status",
+    "CREATE TABLE inbox (id INTEGER PRIMARY KEY, external_id TEXT NOT NULL UNIQUE, source TEXT NOT NULL, "
+    "amount_cents INTEGER CHECK (amount_cents IS NULL OR (typeof(amount_cents) = 'integer' AND amount_cents >= 1)), "
+    "merchant TEXT NOT NULL, card TEXT NOT NULL, received_at TEXT NOT NULL, "
+    "status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'dismissed')), "
+    "payment_id INTEGER, "
+    "CHECK (amount_cents IS NOT NULL OR (source = 'wallet' AND status != 'confirmed')))",
+    "INSERT INTO inbox (id, external_id, source, amount_cents, merchant, card, received_at, status, payment_id) "
+    "SELECT id, external_id, source, amount_cents, merchant, card, received_at, status, payment_id FROM inbox_v5",
+    "DROP TABLE inbox_v5",
+    "CREATE INDEX inbox_by_status ON inbox (status, id)",
 ]
 
 
@@ -147,6 +165,10 @@ class Store:
             for statement in _SCHEMA_V5:
                 con.execute(statement)
             con.execute("PRAGMA user_version = 5")
+        if version < 6:
+            for statement in _SCHEMA_V6:
+                con.execute(statement)
+            con.execute("PRAGMA user_version = 6")
 
     @contextmanager
     def _transaction(self, write):
@@ -332,7 +354,11 @@ class Session:
             return found[0], False
         if item.get("source") not in (*INBOX_SOURCES, WALLET_SOURCE):
             raise ValueError("Unknown payment source.")
-        amount = _cents(item.get("amount"), "Amount", minimum=1)
+        # None = a wallet tap whose amount is not known yet (the student adds it on Confirm).
+        if item.get("amount") is None and item["source"] == WALLET_SOURCE:
+            amount = None
+        else:
+            amount = _cents(item.get("amount"), "Amount", minimum=1)
         texts = [item.get(key) for key in ("merchant", "card", "receivedAt")]
         if not all(isinstance(text, str) and text for text in texts):
             raise ValueError("Merchant, card and time are text.")
@@ -357,14 +383,34 @@ class Session:
             raise ValueError("Unknown inbox status.")
         return self._inbox_rows("status = ?", (status,))
 
-    def set_inbox_status(self, item_id, status, payment_id=None):
-        """Confirm or dismiss a pending item. False if it is missing or already handled."""
+    def wallet_pending(self):
+        """Pending wallet items, oldest first (the duplicate-tap check looks at the latest ones)."""
+        return self._inbox_rows("status = 'pending' AND source = ?", (WALLET_SOURCE,))
+
+    def set_inbox_amount(self, item_id, amount, merchant=None):
+        """Fill in the amount of a pending item that has none (and the merchant, if given).
+        False if it is missing, reviewed or already has an amount."""
+        self._writing()
+        amount = _cents(amount, "Amount", minimum=1)
+        if merchant is not None and not (isinstance(merchant, str) and merchant):
+            raise ValueError("Merchant is text.")
+        cursor = self._con.execute(
+            "UPDATE inbox SET amount_cents = ?, merchant = COALESCE(?, merchant) "
+            "WHERE id = ? AND status = 'pending' AND amount_cents IS NULL", (amount, merchant, item_id))
+        return cursor.rowcount == 1
+
+    def set_inbox_status(self, item_id, status, payment_id=None, amount=None):
+        """Confirm or dismiss a pending item. False if it is missing or already handled.
+        `amount` fills in an amount that was not known (a confirmed item always has one)."""
         self._writing()
         if status not in ("confirmed", "dismissed"):
             raise ValueError("Unknown inbox status.")
+        if amount is not None:
+            amount = _cents(amount, "Amount", minimum=1)
         cursor = self._con.execute(
-            "UPDATE inbox SET status = ?, payment_id = ? WHERE id = ? AND status = 'pending'",
-            (status, payment_id, item_id))
+            "UPDATE inbox SET status = ?, payment_id = ?, amount_cents = COALESCE(amount_cents, ?) "
+            "WHERE id = ? AND status = 'pending'",
+            (status, payment_id, amount, item_id))
         return cursor.rowcount == 1
 
     def merchant_fund(self, merchant):

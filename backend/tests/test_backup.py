@@ -253,7 +253,7 @@ class Rejected(DeviceApi):
         return doc
 
     def test_wrong_schema_version(self):
-        for version in (4, 6, "5", None):
+        for version in (4, 7, "5", "6", None):
             with self.subTest(version=version):
                 doc = copy.deepcopy(self.doc)
                 doc["schemaVersion"] = version

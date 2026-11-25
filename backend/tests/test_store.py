@@ -39,7 +39,7 @@ class Schema(TempDir):
         finally:
             con.close()
         self.assertTrue({"meta", "weeks", "payments"} <= tables)
-        self.assertEqual(SCHEMA_VERSION, 5)  # v5: meals logged at a place, and feedback
+        self.assertEqual(SCHEMA_VERSION, 6)  # v6: wallet taps whose amount is not known yet
 
     def test_reopening_does_not_migrate_again(self):
         store = self.live()

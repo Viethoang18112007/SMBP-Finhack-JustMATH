@@ -387,9 +387,16 @@ class Handler(BaseHTTPRequestHandler):
         return item_id
 
     def post_inbox_confirm(self, data):
+        # "amount" is only for a wallet tap that arrived without one (the student types it in).
+        amount = data.get("amount")
+        amount = None if amount is None else _cents(amount, "Enter an amount greater than zero.")
+        typo_checked = data.get("typoChecked", False)
+        if not isinstance(typo_checked, bool):
+            raise BadRequest("Send typoChecked: true or false.")
         self.send_json(self.service.inbox_confirm(
             self._item_id(data), _text(data.get("category"), "category"),
-            _optional_text(data.get("choice"), "cover"), _optional_text(data.get("requestId"), "request id")))
+            _optional_text(data.get("choice"), "cover"), _optional_text(data.get("requestId"), "request id"),
+            amount, typo_checked))
 
     def post_inbox_dismiss(self, data):
         self.send_json(self.service.inbox_dismiss(self._item_id(data)))

@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 from . import assistant, backup, cooked, fit, money, places, prices, projection, ranges, receipt, rewards
 from .dates import FixedClock, monday_of, week_dates
-from .store import INBOX_SOURCES, REQUEST_ID, WALLET_SOURCE
+from .store import INBOX_SOURCES, REQUEST_ID, WALLET_SOURCE, merchant_key
 from .validate import MAX_CENTS, clean_note, parse_amount
 
 SCENARIOS = ("sample", "empty", "over", "cooked")
@@ -24,6 +24,11 @@ LEGACY_CHOICES = {"borrow": money.FLEX}
 CUSTOM = "custom"
 PLACE_ID = re.compile(r"(node|way|relation)/[0-9]{1,20}")
 FEEDBACK_CHARS = 500
+# iOS can run the Wallet automation twice for one tap (card picked, then paid). Within this many
+# seconds, taps of the same card on the same phone are one item, and a later amount fills it in.
+TAP_WINDOW_SECONDS = 120
+OCTOPUS_NAMES = ("octopus", "八達通", "八达通")
+UNKNOWN_DETAIL = "Tap received without amount: open SSUST to add it."
 
 
 class ServiceError(ValueError):
@@ -135,6 +140,47 @@ def _shown(raw):
     else:
         text = f"({type(raw).__name__})"
     return text.replace("<", " ").replace(">", " ").strip()[:40]
+
+
+def is_octopus_card(card):
+    """True when a Wallet card name looks like an Octopus card. Only used for the label."""
+    return isinstance(card, str) and any(name in card.casefold() for name in OCTOPUS_NAMES)
+
+
+def _sent(value):
+    """Whether a Shortcut field was present and not empty (for the Settings diagnostics)."""
+    return value is not None and not (isinstance(value, str) and not value.strip())
+
+
+def _text_or_none(value):
+    """A Shortcut text field cleaned as the app stores it, or None when empty or not text."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return clean_note(value) or None
+    except ValueError:
+        return None
+
+
+def _zero_amount(raw):
+    """True when a Shortcut amount is exactly zero (0, 0.0, "HK$0.00"): a tap that carried no amount."""
+    if isinstance(raw, bool):
+        return False
+    if isinstance(raw, (int, float)):
+        return raw == 0
+    if isinstance(raw, str):
+        text = _decimal_text("".join(ch for ch in raw if (ch.isascii() and ch.isdigit()) or ch in ",.-"))
+        return bool(text) and parse_amount(text, allow_zero=True) == 0
+    return False
+
+
+def _utc(stamp):
+    """A stored ISO time as an aware UTC datetime, or None."""
+    try:
+        when = datetime.fromisoformat(stamp)
+    except (TypeError, ValueError):
+        return None
+    return when if when.tzinfo else when.replace(tzinfo=timezone.utc)
 
 
 def _wallet_last(s):
@@ -251,16 +297,19 @@ class Service:
         merchant, else the assistant's guess from the merchant name (with its reason)."""
         out = []
         for item in s.inbox("pending"):
-            entry = assistant.parse_entry(f"{money.hk(item['amount'])} {item['merchant']}", self._chains)
-            guess = entry["category"] if entry.get("ok") else "main"
+            guess, reason, chain = assistant.guess_fund(item["merchant"], self._chains)
             remembered = s.merchant_fund(item["merchant"])
+            fund = remembered or guess
             if remembered:
-                fund, reason = remembered, "used last time at this merchant"
-            else:
-                fund, reason = guess, entry.get("reason", "")
-            # The typo check runs before Confirm too (an extra 0 on a simulated tap).
-            typo = entry.get("typo") if fund == guess else assistant.check_typo(item["amount"], fund)
-            out.append({**item, "suggestedFund": fund, "suggestedReason": reason, "typo": typo})
+                reason = "used last time at this merchant"
+            # The typo check runs before Confirm too (an extra 0 on a simulated tap). Without an
+            # amount it runs on Confirm, on the amount the student types.
+            unknown = item["amount"] is None
+            typo = None if unknown else assistant.typo_for(item["amount"], fund, guess, chain)
+            octopus = is_octopus_card(item["card"])
+            label = "Octopus tap" if octopus else f"{item['card']} tap"
+            out.append({**item, "suggestedFund": fund, "suggestedReason": reason, "typo": typo,
+                        "amountUnknown": unknown, "octopus": octopus, "label": label})
         return out
 
     @staticmethod
@@ -444,36 +493,70 @@ class Service:
             item = s.get_inbox(item_id)
         return {"item": item, "created": created, "state": self.get_state()}
 
-    def wallet_tap(self, amount, merchant=None, card=None):
+    def wallet_tap(self, amount, merchant=None, card=None, now=None):
         """A real Apple Pay payment from an iOS Shortcuts automation ("When I tap any card in
         Wallet"). It waits in To review like the others; nothing is spent until it is confirmed.
-        Every run is a new item (the Shortcut has no id of its own)."""
-        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+        - A valid amount: a new item (the Shortcut has no id of its own), or it fills in the amount
+          of this card's amount-unknown item from the last TAP_WINDOW_SECONDS.
+        - No amount (or zero) but a card or merchant: a real tap whose amount iOS did not give
+          (Octopus). Kept as an amount-unknown item, one per card within the window.
+        - Nothing at all: a run by hand from the Shortcuts editor, so only "the link works".
+
+        Settings keeps which fields arrived (names only, plus the card name), never the values.
+        """
+        now = now or datetime.now(timezone.utc)
+        stamp = now.isoformat(timespec="seconds")
         cents = wallet_amount(amount)
-        merchant = merchant if isinstance(merchant, str) else None
-        card = card if isinstance(card, str) else None
-        try:
-            merchant = clean_note(merchant) or "Apple Pay payment"
-            card = clean_note(card) or "Apple Pay"
-        except ValueError:
-            merchant, card = "Apple Pay payment", "Apple Pay"
+        sent_merchant = _text_or_none(merchant)
+        sent_card = _text_or_none(card)
+        received = {"amount": _sent(amount), "merchant": _sent(merchant), "card": _sent(card)}
+        card = sent_card or "Apple Pay"
+        merchant = sent_merchant or ("Octopus tap" if is_octopus_card(sent_card) else "Apple Pay payment")
+        no_amount = not _sent(amount) or _zero_amount(amount)
+        unknown = no_amount and bool(sent_card or sent_merchant)
         with self._books[self.mode()].session(write=True) as s:
+            recent = self._recent_tap(s, card, now)
             # Kept so Settings can show what the automation last sent, accepted or not.
-            if amount is None or (isinstance(amount, str) and not amount.strip()):
+            if unknown:
+                if recent is None:  # else the same tap fired twice: one item is enough
+                    s.add_inbox({"externalId": f"wallet-{uuid.uuid4().hex}", "source": WALLET_SOURCE, "amount": None,
+                                 "merchant": merchant, "card": card, "receivedAt": stamp})
+                last = {"at": stamp, "ok": True, "amountUnknown": True, "detail": UNKNOWN_DETAIL}
+            elif no_amount:
                 # A run by hand from the Shortcuts editor: no payment, so no amount, but it got here.
-                last = {"at": stamp, "ok": False, "linkOk": True, "amount": _shown(amount),
+                last = {"at": stamp, "ok": False, "linkOk": True,
                         "detail": "Test run: the link works. A real Apple Pay payment adds the amount."}
             elif cents is None or cents > MAX_CENTS:
                 last = {"at": stamp, "ok": False, "amount": _shown(amount),
                         "detail": "The amount was not understood. Use Shortcut Input > Amount."}
             else:
-                s.add_inbox({"externalId": f"wallet-{uuid.uuid4().hex}", "source": WALLET_SOURCE, "amount": cents,
-                             "merchant": merchant, "card": card, "receivedAt": stamp})
+                if recent is not None and recent["amount"] is None:
+                    s.set_inbox_amount(recent["id"], cents, sent_merchant)
+                    merchant = sent_merchant or recent["merchant"]
+                else:
+                    s.add_inbox({"externalId": f"wallet-{uuid.uuid4().hex}", "source": WALLET_SOURCE, "amount": cents,
+                                 "merchant": merchant, "card": card, "receivedAt": stamp})
                 last = {"at": stamp, "ok": True, "amount": _shown(amount), "detail": f"{money.hk(cents)} from {merchant}"}
+            last["received"] = received
+            last["cardName"] = sent_card
             s.set_meta("wallet_last", json.dumps(last))
         if not last["ok"]:
             raise ServiceError("Enter an amount greater than zero.")
+        if unknown:
+            return {"ok": True, "amount": None, "amountUnknown": True, "merchant": merchant, "message": UNKNOWN_DETAIL}
         return {"ok": True, "amount": cents, "merchant": merchant}
+
+    @staticmethod
+    def _recent_tap(s, card, now):
+        """This card's latest pending wallet item from the last TAP_WINDOW_SECONDS, or None."""
+        key = merchant_key(card)
+        for item in reversed(s.wallet_pending()):
+            when = _utc(item["receivedAt"])
+            if (merchant_key(item["card"]) == key and when is not None
+                    and abs((now - when).total_seconds()) <= TAP_WINDOW_SECONDS):
+                return item
+        return None
 
     def shortcut_today(self):
         """One line for a Shortcuts widget: what is left today, the streak and what waits for review."""
@@ -530,17 +613,34 @@ class Service:
             raise ServiceError("This payment was already reviewed.")
         return item
 
-    def inbox_confirm(self, item_id, category, choice=None, request_id=None):
+    def inbox_confirm(self, item_id, category, choice=None, request_id=None, amount=None, typo_checked=False):
         """Confirm an incoming payment into a fund, through exactly the same logic as add_payment
-        (overspend step included). Until a payment is saved, the item stays pending."""
+        (overspend step included). Until a payment is saved, the item stays pending.
+
+        An item without an amount (a wallet tap iOS gave none) needs `amount` (integer cents > 0)
+        and goes through the typo check first: {"needsTypoCheck": True, "typo"} until the student
+        confirms again with typo_checked=True. An item that has its amount keeps it."""
         item = self._pending(item_id)
+        if item["amount"] is None:
+            if type(amount) is not int or not 0 < amount <= MAX_CENTS:
+                raise ServiceError("Enter an amount greater than zero.")
+            if category not in money.CATEGORIES:
+                raise ServiceError("Unknown fund.")
+            guess, _, chain = assistant.guess_fund(item["merchant"], self._chains)
+            typo = assistant.typo_for(amount, category, guess, chain)
+            if typo and typo_checked is not True:
+                return {"needsTypoCheck": True, "typo": typo, "needsConfirm": False, "state": self.get_state()}
+        elif amount is not None and amount != item["amount"]:
+            raise ServiceError("This payment already has its amount.")
+        else:
+            amount = item["amount"]
         if request_id is None:
             request_id = f"inbox-{item['externalId']}"[:64]
-        result = self.add_payment(item["amount"], category, item["merchant"], choice, request_id)
+        result = self.add_payment(amount, category, item["merchant"], choice, request_id)
         if result["needsConfirm"]:
             return result
         with self._books[self.mode()].session(write=True) as s:
-            s.set_inbox_status(item_id, "confirmed", payment_id=result["payment"]["id"])
+            s.set_inbox_status(item_id, "confirmed", payment_id=result["payment"]["id"], amount=amount)
             s.remember_merchant_fund(item["merchant"], category)
         return {**result, "state": self.get_state()}
 

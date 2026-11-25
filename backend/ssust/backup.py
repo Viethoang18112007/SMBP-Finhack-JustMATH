@@ -4,13 +4,16 @@ The iPhone app keeps a copy of this document on the phone. When the hosting plat
 server's disk, the app sends it back (POST /api/restore) and store.Session.merge_tables rebuilds
 the data. Every amount is integer cents.
 
-    {"format": "ssust-backup", "schemaVersion": 5, "device": "<32 hex>",
+    {"format": "ssust-backup", "schemaVersion": 6, "device": "<32 hex>",
      "exportedAt": "2027-03-03T10:00:00+00:00", "revision": "<sha256 hex>",
      "tables": {"meta": {...}, "weeks": [...], "payments": [...], "inbox": [...],
                 "merchantFunds": [...], "visits": [...], "feedback": [...]}}
 
 The revision is a hash of the tables only (not the export time): the same data gives the same
 revision, and a document changed after export is refused. Error messages never quote the data.
+
+Version 5 documents (before wallet taps without an amount) still restore: the only change in
+version 6 is that an inbox "amount" may be null on a wallet item that is not confirmed.
 """
 
 import hashlib
@@ -25,7 +28,7 @@ from .store import INBOX_SOURCES, INBOX_STATUSES, REQUEST_ID, SCHEMA_VERSION, WA
 from .validate import MAX_CENTS, clean_note
 
 FORMAT = "ssust-backup"
-SUPPORTED_VERSIONS = (SCHEMA_VERSION,)
+SUPPORTED_VERSIONS = (5, SCHEMA_VERSION)  # 5: no amount-unknown items yet
 TABLES = ("meta", "weeks", "payments", "inbox", "merchantFunds", "visits", "feedback")
 META_KEYS = ("campus", "connected", "wallet_last")
 MAX_ROWS = 10_000  # per table; the request size limit (server.MAX_RESTORE_BODY) comes first in practice
@@ -181,13 +184,18 @@ def _payment(row, where):
     _timestamp(row["voidedAt"], where, optional=True)
 
 
-def _inbox(row, where, payment_ids):
+def _inbox(row, where, payment_ids, version):
     _keys(row, _INBOX, where)
     _id(row["id"], where)
     if not isinstance(row["externalId"], str) or not REQUEST_ID.fullmatch(row["externalId"]):
         _fail(where, "bad external id")
     _choice(row["source"], (*INBOX_SOURCES, WALLET_SOURCE), where)
-    _cents(row["amount"], where, minimum=1)
+    if row["amount"] is None:
+        # A wallet tap whose amount is not known yet (version 6); a confirmed item always has one.
+        if version < 6 or row["source"] != WALLET_SOURCE or row["status"] == "confirmed":
+            _fail(where, "money must be whole cents")
+    else:
+        _cents(row["amount"], where, minimum=1)
     _clean(row["merchant"], where)
     _clean(row["card"], where)
     _timestamp(row["receivedAt"], where)
@@ -260,7 +268,7 @@ def check(doc, device):
 
     inbox = _rows(tables, "inbox")
     for n, row in enumerate(inbox, 1):
-        _inbox(row, f"inbox row {n}", payment_ids)
+        _inbox(row, f"inbox row {n}", payment_ids, version)
     _unique((row["id"] for row in inbox), "inbox ids")
     _unique((row["externalId"] for row in inbox), "inbox external ids")
 
