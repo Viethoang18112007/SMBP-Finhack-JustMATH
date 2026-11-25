@@ -877,16 +877,38 @@ class ScanReceipt(unittest.TestCase):
         self.assertIn("Read from receipt: check it", self.add)
         self.assertIn("Could not read a total, type it in.", self.add)
 
-    def test_dark_border_cut_and_second_pass(self):
-        # A screenshot or a photo with black bars lost the price column and the total: the dark
-        # border is cut, and a second pass (one block, PSM 6, no stretch) runs only without a sure total.
+    def test_borders_cut_and_more_passes_only_when_needed(self):
+        # A screenshot or a photo with black (or white) bars lost the price column and the total: uniform
+        # near-black or near-white borders are cut. Pass 1 is the old pipeline; more passes run only
+        # without a sure total, within a time budget: the right-hand price column with a digits whitelist,
+        # the plain picture as one block, sparse text, then the picture turned 90 degrees.
         self.assertIn("receiptRegion(picture, width, height)", self.ocr)
-        self.assertIn('pass(images.stretched, "4")', self.ocr)
-        self.assertIn('pass(images.plain, "6")', self.ocr)
-        self.assertIn("if (rank(first.result) === 2) return first;", self.ocr)
+        self.assertIn("const LIGHT = ", self.ocr)
+        self.assertIn("const FLAT = ", self.ocr)
+        self.assertIn('read(images.stretched, "4")', self.ocr)
+        self.assertIn("if (rank(best.result) === 2) return best;", self.ocr)
+        self.assertIn("const RIGHT_SHARE = 0.45;", self.ocr)
+        self.assertIn('const DIGITS = "0123456789.,$-HK";', self.ocr)
+        self.assertIn('tessedit_char_whitelist: DIGITS', self.ocr)
+        self.assertIn('read(images.plain, "6")', self.ocr)
+        self.assertIn('"11"', self.ocr)  # sparse text
+        self.assertIn("turn(images.stretched, 90)", self.ocr)
+        self.assertIn("turn(images.stretched, 270)", self.ocr)
+        self.assertIn("const BUDGET_MS = 10000;", self.ocr)
+        self.assertIn('import { mergeWords, rebuildRows, shiftWords, skewOf } from "./rows.js";', self.ocr)
         widget = (JS_ROOT / "widget.js").read_text(encoding="utf-8")
         for source in (self.actions, widget):
             self.assertIn('readTotal(file, (text) => api("/api/receipt/parse", { text })', source)
+
+    def test_row_rebuild_is_a_pure_module(self):
+        # Words from several passes are put back on their visual rows ("Amount" + "$1,032.0"), so the
+        # same function can serve a native scanner later: no DOM, no globals, no imports.
+        rows = (JS_ROOT / "rows.js").read_text(encoding="utf-8")
+        for name in ("export function rebuildRows(", "export function mergeWords(", "export function skewOf(",
+                     "export function shiftWords("):
+            self.assertIn(name, rows)
+        for word in ("document", "window", "import ", "fetch(", "Tesseract"):
+            self.assertNotIn(word, rows)
 
     def test_no_prices_read_asks_for_a_new_photo(self):
         # The server answers reason "no_amounts" when fewer than 2 prices were read: no guess, a retake hint,
