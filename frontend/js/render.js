@@ -2,6 +2,7 @@
 
 import { applyNumbers, chooseCampus, commit, confirmInbox, dismissInbox, loadMap, logMealAt, onSave, openAdd, scanReceipt, sendFeedback, setConnected, showToast, showWeek, simulateTap, switchMode, undoPayment } from "./actions.js";
 import { renderDeskSide, updateReviewPreview } from "./inbox.js";
+import { offlineLabel } from "./backup.js";
 import { bindBudget } from "./budget.js";
 import { applyFrame, renderHome } from "./device.js";
 import { escapeHtml, hk, longDate, parseAmount } from "./format.js";
@@ -83,9 +84,18 @@ function viewKey() {
 let lastScreen = null;
 let lastMode = null;
 
+// iPhone app with the server out of reach: "Offline, last updated hh:mm" above the saved numbers.
+function renderOffline() {
+  const bar = document.getElementById("offline-bar");
+  if (!bar) return;
+  bar.hidden = !state.offline;
+  bar.textContent = state.offline ? offlineLabel(state.offline.since, Date.now()) : "";
+}
+
 export function render() {
   clearMap();
   renderMode();
+  renderOffline();
   const root = document.getElementById("screen");
   const nav = document.getElementById("nav");
   if (!state.view) {

@@ -23,10 +23,14 @@ export function apiUrl(path) {
 }
 
 // The iPhone app's own id (random, 32 hex characters), sent with every API call so the server
-// keeps this phone's data apart from everyone else's. Kept in the app's storage; when storage
-// is blocked it lasts until the app is closed.
-const DEVICE_KEY = "ssust.device";
+// keeps this phone's data apart from everyone else's. At launch durable.js loadDeviceId() reads it
+// from the app's durable storage (iOS keeps it until the app is deleted) and pins it here; before
+// that, or without it, it comes from the WebView storage; when that is blocked too it lasts until
+// the app is closed.
+export const DEVICE_KEY = "ssust.device";
+const DEVICE_PATTERN = /^[0-9a-f]{32}$/;
 let memoryId = null;
+let pinnedId = null;
 
 function newId() {
   const bytes = new Uint8Array(16);
@@ -34,10 +38,22 @@ function newId() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// Use this id from now on (the one kept in durable storage). It is mirrored to the WebView storage.
+export function useDeviceId(id) {
+  if (!DEVICE_PATTERN.test(id || "")) return;
+  pinnedId = id;
+  try {
+    window.localStorage.setItem(DEVICE_KEY, id);
+  } catch (err) {
+    // the pinned id still holds until the app is closed
+  }
+}
+
 export function deviceId() {
+  if (pinnedId) return pinnedId;
   try {
     let id = window.localStorage.getItem(DEVICE_KEY);
-    if (!/^[0-9a-f]{32}$/.test(id || "")) {
+    if (!DEVICE_PATTERN.test(id || "")) {
       id = newId();
       window.localStorage.setItem(DEVICE_KEY, id);
     }

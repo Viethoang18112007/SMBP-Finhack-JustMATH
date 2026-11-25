@@ -346,6 +346,12 @@ h1, h2, h3, p { margin: 0; }
   animation: item-in var(--dur-base) var(--ease-out) both;
 }
 .toast[hidden] { display: none; }
+/* Native app, server out of reach: the saved numbers are read-only. */
+.offline-bar {
+  padding: 6px var(--s3); background: var(--amber-bg); color: var(--amber);
+  font-size: 13px; font-weight: 650; text-align: center;
+}
+.offline-bar[hidden] { display: none; }
 .toast-text { flex: 1 1 160px; min-width: 0; }
 .toast-ask { font-weight: 650; }
 .toast-btn {

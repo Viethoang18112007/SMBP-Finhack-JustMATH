@@ -46,6 +46,7 @@ export const state = {
   toast: null, // { text, undoId, confirming }: the short message above the Add button
   undoId: null, // the payment whose "Yes, undo" step is showing
   flash: "", // a one-time confirmation, shown as a toast (e.g. after an undo)
+  offline: null, // iPhone app, server out of reach: { since } and the last saved state, read-only
   saving: false, // a payment request is in flight: Save and the cover buttons are disabled
   attempt: null, // { key, requestId }: reused when the same amount and category are submitted again
   showNotice: false,

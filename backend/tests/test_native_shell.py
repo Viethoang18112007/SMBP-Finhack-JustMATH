@@ -75,7 +75,8 @@ class ShellFiles(unittest.TestCase):
         pkg = json.loads(read(ROOT / "package.json"))
         self.assertTrue(pkg.get("private"))
         deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
-        self.assertEqual(set(deps), {"@capacitor/core", "@capacitor/cli", "@capacitor/ios"})
+        # @capacitor/preferences: the phone's durable copy of its data (backup and device id).
+        self.assertEqual(set(deps), {"@capacitor/core", "@capacitor/cli", "@capacitor/ios", "@capacitor/preferences"})
         # No build step for the web app: nothing to run before serving frontend/.
         self.assertNotIn("build", pkg.get("scripts", {}))
 
