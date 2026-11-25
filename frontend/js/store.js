@@ -48,6 +48,7 @@ export const state = {
   flash: "", // a one-time confirmation, shown as a toast (e.g. after an undo)
   offline: null, // iPhone app, server out of reach: { since } and the last saved state, read-only
   saving: false, // a payment request is in flight: Save and the cover buttons are disabled
+  review: {}, // To review, per tap without an amount: { raw, error, typo, typoFor } (inbox.js)
   attempt: null, // { key, requestId }: reused when the same amount and category are submitted again
   showNotice: false,
   mapKind: "food",

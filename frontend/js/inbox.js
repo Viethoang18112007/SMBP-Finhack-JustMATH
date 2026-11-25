@@ -4,9 +4,11 @@
 // same payment logic as Add payment (overspend step included). Nothing here reads a bank.
 
 import { notifyArrival } from "./notifications.js";
-import { CATEGORIES, escapeHtml, hk, newRequestId } from "./format.js";
+import { CATEGORIES, escapeHtml, hk, newRequestId, parseAmount } from "./format.js";
 import { previewLine } from "./preview.js";
+import { QUICK } from "./screens/add.js";
 import { state } from "./store.js";
+import { tapTitle } from "./tap.js";
 
 export const SOURCES = {
   apple_pay: { name: "Apple Pay", setting: "Apple Wallet" },
@@ -79,11 +81,43 @@ function fundSelect(item) {
   return `<select class="review-fund" id="review-fund-${item.id}" data-review-fund="${item.id}" aria-label="Fund for ${escapeHtml(item.merchant)}">${options}</select>`;
 }
 
+// What was typed for a tap without an amount (kept across renders), its error and typo question.
+export function reviewDraft(id) {
+  return state.review[id] || { raw: "", error: "", typo: "", typoFor: "" };
+}
+
+// A wallet tap iOS gave no amount for (Octopus): "Octopus tap at 12:00 | amount?", the same amount
+// field and quick chips as Add payment, the fund pre-selected, Confirm or Dismiss.
+function unknownRow(item) {
+  const draft = reviewDraft(item.id);
+  const title = tapTitle(item);
+  const cents = parseAmount(draft.raw);
+  const quick = QUICK.map((v) => `<button type="button" class="chip" data-review-quick="${item.id}" data-value="${v}">HK$${v}</button>`).join("");
+  const asked = draft.typo && draft.typoFor === draft.raw.trim();
+  return `<li class="review-item review-unknown" data-key="r-${item.id}">
+      <div class="review-top"><span class="review-source">${escapeHtml(title)}</span><strong class="num review-ask">amount?</strong></div>
+      ${item.merchant !== item.label ? `<div class="review-merchant">${escapeHtml(item.merchant)} <span class="muted">· ${escapeHtml(item.card)}</span></div>` : ""}
+      <p class="hint review-why">iOS does not give SSUST the amount of this tap. Type what you paid.</p>
+      <label class="amount-field review-amount${draft.error ? " invalid" : ""}" for="review-amount-${item.id}">
+        <span class="cur" aria-hidden="true">HK$</span>
+        <input class="amount" id="review-amount-${item.id}" data-review-amount="${item.id}" inputmode="decimal" autocomplete="off" placeholder="0" value="${escapeHtml(draft.raw)}" aria-label="Amount for ${escapeHtml(title)}, in Hong Kong dollars" aria-describedby="review-error-${item.id}"${draft.error ? ' aria-invalid="true"' : ""}>
+      </label>
+      <div class="quick" role="group" aria-label="Quick amounts">${quick}</div>
+      <div class="error" id="review-error-${item.id}" role="alert">${escapeHtml(draft.error)}</div>
+      ${item.suggestedReason ? `<p class="hint review-why">Fund picked: ${escapeHtml(item.suggestedReason)}</p>` : ""}
+      ${asked ? `<p class="review-typo" role="alert"><strong>Typo?</strong> ${escapeHtml(draft.typo)} Check the amount before you confirm.</p>` : ""}
+      <div class="review-actions">${fundSelect(item)}
+        <button type="button" class="primary small" data-review-confirm="${item.id}">${asked && cents ? `Confirm ${hk(cents)} anyway` : "Confirm"}</button>
+        <button type="button" class="ghost small" data-review-dismiss="${item.id}">Dismiss</button></div>
+      <p class="preview" id="review-preview-${item.id}">${escapeHtml(previewLine(state.view, cents, item.suggestedFund))}</p>
+    </li>`;
+}
+
 // Today: "To review (n)", each incoming payment with its fund pre-selected, Confirm or Dismiss.
 export function reviewCard() {
   const items = (state.data && state.data.inbox) || [];
   if (!items.length || !state.view || !state.view.ready) return "";
-  const rows = items.map((item) => `<li class="review-item" data-key="r-${item.id}">
+  const rows = items.map((item) => item.amountUnknown ? unknownRow(item) : `<li class="review-item" data-key="r-${item.id}">
       <div class="review-top"><span class="review-source">${SOURCES[item.source].name}${item.source === "wallet" ? "" : '<span class="sim-tag">Simulated</span>'}</span><strong class="num">${hk(item.amount)}</strong></div>
       <div class="review-merchant">${escapeHtml(item.merchant)} <span class="muted">· ${escapeHtml(item.card)}</span></div>
       ${item.suggestedReason ? `<p class="hint review-why">Fund picked: ${escapeHtml(item.suggestedReason)}</p>` : ""}
@@ -102,7 +136,26 @@ export function reviewCard() {
 export function updateReviewPreview(select) {
   const item = (state.data.inbox || []).find((i) => String(i.id) === select.dataset.reviewFund);
   const el = document.getElementById(`review-preview-${select.dataset.reviewFund}`);
-  if (item && el) el.textContent = previewLine(state.view, item.amount, select.value);
+  if (!item || !el) return;
+  const cents = item.amountUnknown ? parseAmount(reviewDraft(item.id).raw) : item.amount;
+  el.textContent = previewLine(state.view, cents, select.value);
+}
+
+// Typing an amount (or a quick chip) on a tap without one: keep it, clear the old message, and
+// update the preview in place so focus stays in the field.
+export function setReviewAmount(id, raw) {
+  const draft = reviewDraft(id);
+  state.review[id] = { ...draft, raw, error: "" };
+  const input = document.getElementById(`review-amount-${id}`);
+  if (input && input.value !== raw) input.value = raw;
+  if (input) {
+    input.removeAttribute("aria-invalid");
+    input.closest(".amount-field")?.classList.remove("invalid");
+  }
+  const error = document.getElementById(`review-error-${id}`);
+  if (error) error.textContent = "";
+  const select = document.getElementById(`review-fund-${id}`);
+  if (select) updateReviewPreview(select);
 }
 
 // The notification for a simulated payment (notifications.js shows it): it says Simulated and a
@@ -112,7 +165,7 @@ export function paymentNote(item, mode) {
     key: `payment:${mode}:${item.id}`,
     app: SOURCES[item.source].name,
     tag: '<span class="sim-tag">Simulated</span>',
-    title: `${hk(item.amount)} at ${item.merchant}`,
+    title: item.amountUnknown ? `${tapTitle(item)}: amount?` : `${hk(item.amount)} at ${item.merchant}`,
     body: "Tap to review. Simulated: no card, no bank.",
     open: { screen: "today", review: true },
   };

@@ -8,19 +8,21 @@ Settings shows which fields the last message carried (names only, plus the card 
 
 import copy
 import json
+import shutil
 import sqlite3
+import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from ssust import backup, money, service as service_module, store as store_module
+from ssust import backup, money, store as store_module
 from ssust.dates import FixedClock
 from ssust.service import TAP_WINDOW_SECONDS, Service, ServiceError, is_octopus_card
 from ssust.store import SCHEMA_VERSION, Store, open_books
 
 from tests.test_api import FUNDS_TEXT
-from tests.test_backup import PHONE, DeviceApi
+from tests.test_backup import DeviceApi
 from tests.test_store import make_v1_file
 from tests.test_wallet_shortcuts import DeviceClient
 
@@ -366,6 +368,47 @@ class Backup(DeviceApi):
         doc["tables"]["inbox"][0]["source"] = "octopus"
         doc["revision"] = backup.revision(doc["tables"])
         self.refused("/api/restore", doc)
+
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+JS = ROOT / "frontend" / "js"
+
+
+class Frontend(unittest.TestCase):
+    """The review card asks for the amount; the pure helpers live in tap.js (checked with node)."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_tap_helpers_are_pure(self):
+        tap = (JS / "tap.js").read_text(encoding="utf-8")
+        self.assertNotIn("import ", tap)
+        for name in ("hkClock", "tapTitle", "receivedLine", "reviewAmountError", "confirmBody"):
+            self.assertIn(f"export function {name}(", tap)
+
+    @unittest.skipUnless(shutil.which("node"), "node is not installed")
+    def test_tap_helpers_with_node(self):
+        done = subprocess.run(["node", str(ROOT / "tools" / "check_tap_js.mjs")], capture_output=True,
+                              text=True, timeout=60)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("all tap checks passed", done.stdout)
+
+    def test_review_card_asks_for_the_amount(self):
+        inbox = (JS / "inbox.js").read_text(encoding="utf-8")
+        for word in ("amountUnknown", "tapTitle(", "data-review-amount", "data-review-quick", "QUICK"):
+            self.assertIn(word, inbox)
+        render = (JS / "render.js").read_text(encoding="utf-8")
+        self.assertIn("[data-review-quick]", render)
+        self.assertIn("[data-review-amount]", render)
+        actions = (JS / "actions.js").read_text(encoding="utf-8")
+        self.assertIn("confirmBody(", actions)
+        self.assertIn("needsTypoCheck", actions)
+
+    def test_settings_is_honest_about_octopus(self):
+        guide = (JS / "screens" / "shortcuts.js").read_text(encoding="utf-8")
+        self.assertIn("Octopus taps do not give iOS the amount, so SSUST asks you for it.", guide)
+        self.assertIn("receivedLine(", guide)
+        self.assertIn("amountUnknown", guide)
 
 
 if __name__ == "__main__":

@@ -994,6 +994,10 @@ body.phone-view .desk-side { display: flex; flex-direction: column; gap: var(--s
 .review-fund { flex: 1 1 auto; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: var(--r-ctl); padding: 0 8px; background: var(--card); }
 .review-actions button { min-height: 44px; flex: 0 0 auto; }
 .review .preview { margin: var(--s2) 0 0; }
+/* A wallet tap without an amount (Octopus): the student types it, as in Add payment. */
+.review-ask { color: var(--muted); font-style: italic; }
+.review-amount { margin: var(--s2) 0; }
+.review-unknown .quick { margin-bottom: var(--s2); }
 .muted { color: var(--muted); }
 .notify { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: min(370px, calc(100% - 20px)); z-index: 60; }
 .notify[hidden] { display: none; }

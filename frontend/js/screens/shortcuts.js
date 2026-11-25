@@ -9,6 +9,7 @@
 import { API_BASE, deviceId } from "../config.js";
 import { escapeHtml } from "../format.js";
 import { state } from "../store.js";
+import { receivedLine } from "../tap.js";
 import { widgetLinked } from "../widgetsync.js";
 
 function copyRow(label, value) {
@@ -27,9 +28,13 @@ function lastMessage() {
     ? ""
     : when.toLocaleString("en-GB", { timeZone: "Asia/Hong_Kong", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   let what = `Refused: ${escapeHtml(last.detail)} It sent "${escapeHtml(last.amount)}".`;
-  if (last.ok) what = `Received ${escapeHtml(last.detail)}. It waits in Today under To review.`;
+  if (last.amountUnknown) what = escapeHtml(last.detail); // "Tap received without amount: open SSUST to add it."
+  else if (last.ok) what = `Received ${escapeHtml(last.detail)}. It waits in Today under To review.`;
   else if (last.linkOk) what = escapeHtml(last.detail);
-  return `<p class="notice ${last.ok || last.linkOk ? "" : "warn"}" role="status">Last Apple Pay message, ${escapeHtml(time)}: ${what}</p>`;
+  // Which fields iOS sent (names only, plus the card name), to see what a card really gives.
+  const fields = receivedLine(last);
+  return `<p class="notice ${last.ok || last.linkOk ? "" : "warn"}" role="status">Last Apple Pay message, ${escapeHtml(time)}: ${what}</p>`
+    + (fields ? `<p class="hint">${escapeHtml(fields)}</p>` : "");
 }
 
 export function shortcutsCard() {
@@ -53,7 +58,7 @@ export function shortcutsCard() {
           <li>Test without paying: in the automation, tap <strong>▶</strong> (bottom right). Open SSUST: the line above says "the link works".</li>
           <li>Then one real Apple Pay payment (even HK$1): the line above says what arrived.</li>
         </ol>
-        <p class="hint">Octopus in Wallet: transit taps may not start the automation. Keep the header value private.</p>
+        <p class="hint">Bank cards in Apple Pay send the amount by themselves. Octopus taps do not give iOS the amount, so SSUST asks you for it. Keep the header value private.</p>
       </details>
     </section>
     <section class="card" aria-labelledby="widget-title">

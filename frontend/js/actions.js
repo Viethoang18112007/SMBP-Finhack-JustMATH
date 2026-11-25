@@ -6,9 +6,10 @@ import { render, renderToast } from "./render.js";
 import { leaveElement } from "./motion.js";
 import { readTotal } from "./ocr.js";
 import { nativeScanner, readNative } from "./scanner.js";
-import { nextTap, showNotification } from "./inbox.js";
+import { nextTap, reviewDraft, showNotification } from "./inbox.js";
 import { defaultChoice } from "./sheet.js";
 import { applyState, state } from "./store.js";
+import { confirmBody, reviewAmountError, typoAnswered } from "./tap.js";
 import { budgetMismatch } from "./budget.js";
 
 // What the tanks animate after a save: which fund paid, and which others gave to it.
@@ -170,6 +171,7 @@ function forgetModeData() {
     flash: "",
     errorField: null,
     fundDraft: null,
+    review: {},
     screen: "today",
   });
 }
@@ -348,7 +350,7 @@ export async function commit(pending, choice) {
   render();
   try {
     const data = pending.inboxId
-      ? await api("/api/inbox/confirm", { id: pending.inboxId, category: pending.category, choice })
+      ? await api("/api/inbox/confirm", confirmBody(pending.inboxItem, pending.category, pending.amountRaw, true, choice))
       : await api("/api/payments", {
         amount: pending.amountRaw,
         category: pending.category,
@@ -393,40 +395,67 @@ export async function simulateTap(source) {
   }
 }
 
-export async function confirmInbox(id, category) {
+// Confirm a payment waiting in To review. A tap without an amount (Octopus) sends the amount the
+// student typed (`raw`); nothing is saved without it, and the server's typo check asks first.
+export async function confirmInbox(id, category, raw) {
   if (state.saving) return;
   const item = (state.data.inbox || []).find((i) => i.id === id);
   if (!item) return;
+  let cents = item.amount;
+  const draft = reviewDraft(id);
+  if (item.amountUnknown) {
+    raw = String(raw ?? draft.raw);
+    cents = parseAmount(raw);
+    const error = reviewAmountError(cents);
+    state.review[id] = { ...draft, raw, error };
+    if (error) {
+      render();
+      document.getElementById(`review-amount-${id}`)?.focus();
+      return;
+    }
+  }
   state.saving = true;
   try {
-    const data = await api("/api/inbox/confirm", { id, category });
+    const data = await api("/api/inbox/confirm", confirmBody(item, category, raw, typoAnswered(draft, raw)));
     state.saving = false;
+    if (data.needsTypoCheck) {
+      state.review[id] = { ...state.review[id], typo: data.typo.reason, typoFor: raw.trim() };
+      applyState(data.state);
+      render();
+      document.querySelector(`[data-review-confirm="${id}"]`)?.focus();
+      return;
+    }
     if (data.needsConfirm) {
       state.sheet = {
         level: data.level,
         options: data.options,
         selected: defaultChoice(data.options),
-        amount: item.amount,
+        amount: cents,
         fundsNow: data.state.view.fundsNow,
         tomorrow: data.state.view.tomorrow,
         todayRemaining: data.state.view.todayRemaining,
         category,
         inboxId: id,
+        inboxItem: item,
+        amountRaw: raw,
       };
       applyState(data.state);
       render();
       return;
     }
+    delete state.review[id];
     savedDirect(data);
   } catch (err) {
     state.saving = false;
-    state.error = paymentError(err);
+    if (item.amountUnknown && err.fromServer) state.review[id] = { ...state.review[id], error: paymentError(err) };
+    else state.error = paymentError(err);
     render();
   }
 }
 
 export async function dismissInbox(id) {
   try {
+    delete state.review[id];
     applyState(await api("/api/inbox/dismiss", { id }));
     showToast({ text: "Dismissed. Nothing was saved." });
   } catch (err) {

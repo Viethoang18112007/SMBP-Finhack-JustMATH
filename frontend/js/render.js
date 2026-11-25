@@ -1,7 +1,7 @@
 // Draws the current screen, the Add sheet and the toast, then wires the buttons.
 
 import { applyNumbers, chooseCampus, commit, confirmInbox, dismissInbox, loadMap, logMealAt, onSave, openAdd, scanReceipt, sendFeedback, setConnected, showToast, showWeek, simulateTap, switchMode, undoPayment } from "./actions.js";
-import { renderDeskSide, updateReviewPreview } from "./inbox.js";
+import { renderDeskSide, setReviewAmount, updateReviewPreview } from "./inbox.js";
 import { offlineLabel } from "./backup.js";
 import { bindBudget } from "./budget.js";
 import { applyFrame, renderHome } from "./device.js";
@@ -262,9 +262,17 @@ function bind() {
     setConnected(btn.dataset.connect, btn.getAttribute("aria-pressed") !== "true");
   }));
   document.querySelectorAll("[data-review-fund]").forEach((sel) => sel.addEventListener("change", () => updateReviewPreview(sel)));
+  // A tap without an amount: the field and the quick chips, as in Add payment.
+  document.querySelectorAll("[data-review-amount]").forEach((input) => input.addEventListener("input", () => {
+    setReviewAmount(Number(input.dataset.reviewAmount), input.value);
+  }));
+  document.querySelectorAll("[data-review-quick]").forEach((chip) => chip.addEventListener("click", () => {
+    setReviewAmount(Number(chip.dataset.reviewQuick), chip.dataset.value);
+  }));
   document.querySelectorAll("[data-review-confirm]").forEach((btn) => btn.addEventListener("click", () => {
     const id = Number(btn.dataset.reviewConfirm);
-    confirmInbox(id, document.getElementById(`review-fund-${id}`).value);
+    const amount = document.getElementById(`review-amount-${id}`);
+    confirmInbox(id, document.getElementById(`review-fund-${id}`).value, amount ? amount.value : undefined);
   }));
   document.querySelectorAll("[data-review-dismiss]").forEach((btn) => btn.addEventListener("click", () => dismissInbox(Number(btn.dataset.reviewDismiss))));
   // Scan receipt: in the iPhone app the document camera (the phone reads the receipt), elsewhere the
