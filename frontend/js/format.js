@@ -18,6 +18,8 @@ export const CATEGORIES = FUND_ORDER.filter((id) => id !== "savings").map((id) =
 export const FUND_FIELDS = FUND_ORDER.map((id) => [id, FUND_NAME[id]]);
 // A receipt photo where the reader found fewer than 2 prices (server reason "no_amounts").
 export const RETAKE_HINT = "No prices were read. Retake the photo flat, from above, no fingers, whole ticket in frame.";
+// The iPhone app when camera access was refused.
+export const CAMERA_OFF = "Camera access is off. Allow it in Settings > SSUST > Camera, or use From photos.";
 export function hk(cents) {
   if (cents == null || Number.isNaN(cents)) return "-";
   const sign = cents < 0 ? "-" : "";

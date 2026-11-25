@@ -6,6 +6,7 @@ import { bindBudget } from "./budget.js";
 import { applyFrame, renderHome } from "./device.js";
 import { escapeHtml, hk, longDate, parseAmount } from "./format.js";
 import { previewLine } from "./preview.js";
+import { nativeScanner } from "./scanner.js";
 import { animateBars, animateCounts, animateEntrances, animateTanks, cancelSheetClose, captureTanks, moveNavPill, closeSheetAnimated, enterScreen, isSheetClosing, openSheetAnimated, screenEnterClass } from "./motion.js";
 import { clearMap, mountMap, selectPlace } from "./mapview.js";
 import { selectOption, sheetHtml } from "./sheet.js";
@@ -256,11 +257,15 @@ function bind() {
     confirmInbox(id, document.getElementById(`review-fund-${id}`).value);
   }));
   document.querySelectorAll("[data-review-dismiss]").forEach((btn) => btn.addEventListener("click", () => dismissInbox(Number(btn.dataset.reviewDismiss))));
-  document.getElementById("scan-btn")?.addEventListener("click", () => document.getElementById("scan-file")?.click());
-  // Today: open Add payment and the photo picker at once (camera or photos), in the same tap.
+  // Scan receipt: in the iPhone app the document camera (the phone reads the receipt), elsewhere the
+  // photo picker. "From photos" (iPhone app only) is the picker.
+  const scanNow = () => (nativeScanner() ? scanReceipt(null) : document.getElementById("scan-file")?.click());
+  document.getElementById("scan-btn")?.addEventListener("click", scanNow);
+  document.getElementById("scan-photo")?.addEventListener("click", () => document.getElementById("scan-file")?.click());
+  // Today: open Add payment and the camera or photo picker at once, in the same tap.
   document.querySelector("[data-scan-today]")?.addEventListener("click", () => {
     openAdd();
-    document.getElementById("scan-file")?.click();
+    scanNow();
   });
   document.querySelectorAll("[data-copy]").forEach((btn) => btn.addEventListener("click", () => copyText(btn)));
   document.getElementById("scan-file")?.addEventListener("change", (event) => scanReceipt(event.target.files && event.target.files[0]));

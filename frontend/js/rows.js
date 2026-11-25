@@ -73,3 +73,22 @@ export function rebuildRows(words, slope = 0, tolerance = 0.5) {
   }
   return rows.map((row) => row.words.sort((a, b) => a.x0 - b.x0).map((w) => w.text).join(" ")).join("\n");
 }
+
+// Lines read by the iPhone's own text recognition ({ text, x, y, w, h }, the box from 0 to 1, from the
+// top left) as words in a `size` x `size` frame, the shape rebuildRows works on.
+export function wordsFromLines(lines, size = 1000) {
+  return (lines || [])
+    .filter((l) => l && typeof l.text === "string" && [l.x, l.y, l.w, l.h].every(Number.isFinite))
+    .map((l) => ({ text: l.text, x0: l.x * size, y0: l.y * size, x1: (l.x + l.w) * size, y1: (l.y + l.h) * size }))
+    .filter(usable);
+}
+
+// The text of scanned pages (each a list of lines as above), one visual row per line, so a label and
+// its amount read as two pieces ("Amount", "$1,032.0") end up on one line. The phone's scan screen
+// already straightens the page, so no tilt is applied.
+export function textOfPages(pages) {
+  return (Array.isArray(pages) ? pages : [])
+    .map((lines) => rebuildRows(wordsFromLines(lines)))
+    .filter(Boolean)
+    .join("\n");
+}

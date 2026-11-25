@@ -5,6 +5,7 @@ import { FUND_FIELDS, FUND_NAME, hk, newRequestId, parseAmount, plainAmount } fr
 import { render, renderToast } from "./render.js";
 import { leaveElement } from "./motion.js";
 import { readTotal } from "./ocr.js";
+import { nativeScanner, readNative } from "./scanner.js";
 import { nextTap, showNotification } from "./inbox.js";
 import { defaultChoice } from "./sheet.js";
 import { applyState, state } from "./store.js";
@@ -80,23 +81,46 @@ function keepDraft() {
   if (note) state.draft.note = note.value;
 }
 
-// Scan receipt: read the image offline, ask the server for the total, pre-fill the form.
+// Scan receipt: read the receipt, ask the server for the total, pre-fill the form.
 // Never saves: the student checks the amount, picks the fund and taps Save as usual.
+// In the iPhone app (scanner.js) the phone reads it: the document camera when `file` is null, else
+// the picked photo; only the text goes to the server. Elsewhere, or if the phone cannot read a
+// picked photo, the offline tesseract.js reader (ocr.js) reads the file.
 export async function scanReceipt(file) {
-  if (!file || !state.adding || (state.scan && state.scan.status === "reading")) return;
+  const scanner = nativeScanner();
+  if ((!file && !scanner) || !state.adding || (state.scan && state.scan.status === "reading")) return;
   keepDraft();
-  state.scan = { status: "reading", percent: 0, words: "Loading the offline reader" };
+  state.scan = { status: "reading", percent: 0, words: scanner ? "Reading on the phone" : "Loading the offline reader" };
   render();
   let result = null;
   let read = "";
   try {
-    const scan = await readTotal(file, (text) => api("/api/receipt/parse", { text }), (percent, words) => {
-      if (!state.scan || state.scan.status !== "reading") return;
-      state.scan.percent = percent;
-      state.scan.words = words;
-      const el = document.getElementById("scan-status");
-      if (el) el.textContent = percent ? `${words}: ${percent}%` : `${words}…`;
-    });
+    let scan = null;
+    if (scanner) {
+      let text = null;
+      try {
+        text = await readNative(scanner, file);
+      } catch (err) {
+        if (!state.adding) return;
+        if (err && (err.code === "cancelled" || err.code === "camera_denied")) {
+          keepDraft();
+          state.scan = err.code === "cancelled" ? null : { status: "camera_off" };
+          render();
+          return;
+        }
+        if (!file) throw err; // no picture for the offline reader to fall back on
+      }
+      if (text !== null) scan = { text, result: await api("/api/receipt/parse", { text }) };
+    }
+    if (!scan) {
+      scan = await readTotal(file, (text) => api("/api/receipt/parse", { text }), (percent, words) => {
+        if (!state.scan || state.scan.status !== "reading") return;
+        state.scan.percent = percent;
+        state.scan.words = words;
+        const el = document.getElementById("scan-status");
+        if (el) el.textContent = percent ? `${words}: ${percent}%` : `${words}…`;
+      });
+    }
     read = scan.text;
     result = scan.result;
   } catch (err) {

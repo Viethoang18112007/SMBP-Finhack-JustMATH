@@ -110,5 +110,48 @@ class XcodeProject(unittest.TestCase):
         self.assertEqual(self.project.count("isa = XCSwiftPackageProductDependency;"), 1)
 
 
+class WebSide(unittest.TestCase):
+    def setUp(self):
+        self.rows = read("frontend", "js", "rows.js")
+        self.scanner = read("frontend", "js", "scanner.js")
+        self.actions = read("frontend", "js", "actions.js")
+
+    def test_row_rebuild_takes_the_phone_lines(self):
+        self.assertIn("export function wordsFromLines(", self.rows)
+        self.assertIn("export function textOfPages(", self.rows)
+        for word in ("document", "window", "import ", "fetch("):
+            self.assertNotIn(word, self.rows)
+
+    def test_scanner_uses_the_plugin_only_in_the_app(self):
+        self.assertIn('import { NATIVE } from "./config.js";', self.scanner)
+        self.assertIn('import { trimText } from "./ocr.js";', self.scanner)
+        self.assertIn('import { textOfPages } from "./rows.js";', self.scanner)
+        self.assertIn('isPluginAvailable("ReceiptScanner")', self.scanner)
+        self.assertIn("Plugins.ReceiptScanner", self.scanner)
+        self.assertIn("if (!NATIVE) return null;", self.scanner)
+        # only the text leaves: the server is asked by the caller, never with a picture
+        for word in ("fetch(", "api(", "apiUrl"):
+            self.assertNotIn(word, self.scanner)
+
+    def test_add_payment_uses_the_phone_reader_then_the_offline_one(self):
+        scan = self.actions[self.actions.index("export async function scanReceipt"):]
+        self.assertIn("const scanner = nativeScanner();", scan)
+        self.assertIn("await readNative(scanner, file)", scan)
+        self.assertIn('readTotal(file, (text) => api("/api/receipt/parse", { text })', scan)
+        self.assertIn('err.code === "cancelled"', scan)
+        self.assertIn('err.code === "camera_denied"', scan)
+        self.assertIn('state.scan = { status: "none", text: read.slice(0, 800), reason: result.reason || "" };', scan)
+
+    def test_buttons(self):
+        add = read("frontend", "js", "screens", "add.js")
+        render = read("frontend", "js", "render.js")
+        self.assertIn('id="scan-photo"', add)
+        self.assertIn("From photos", add)
+        self.assertIn("CAMERA_OFF", add)
+        self.assertIn("No TOTAL line found: best guess, check it.", add)
+        self.assertIn("nativeScanner()", render)
+        self.assertIn('getElementById("scan-photo")', render)
+
+
 if __name__ == "__main__":
     unittest.main()
