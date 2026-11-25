@@ -16,6 +16,8 @@ export const FLEX_FUNDS = ["experience", "development"];
 // The funds a payment can come from (savings is never picked directly).
 export const CATEGORIES = FUND_ORDER.filter((id) => id !== "savings").map((id) => [id, FUND_NAME[id]]);
 export const FUND_FIELDS = FUND_ORDER.map((id) => [id, FUND_NAME[id]]);
+// A receipt photo where the reader found fewer than 2 prices (server reason "no_amounts").
+export const RETAKE_HINT = "No prices were read. Retake the photo flat, from above, no fingers, whole ticket in frame.";
 export function hk(cents) {
   if (cents == null || Number.isNaN(cents)) return "-";
   const sign = cents < 0 ? "-" : "";

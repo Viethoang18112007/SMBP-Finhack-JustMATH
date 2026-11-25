@@ -2,7 +2,7 @@
 // It opens over the current screen; a payment bigger than what is left turns it into the
 // reallocation step (sheet.js) before anything is saved.
 
-import { CATEGORIES, escapeHtml, hk, parseAmount } from "../format.js";
+import { CATEGORIES, RETAKE_HINT, escapeHtml, hk, parseAmount } from "../format.js";
 import { previewLine } from "../preview.js";
 import { state } from "../store.js";
 
@@ -32,12 +32,12 @@ export function addSheetHtml() {
   if (reading) scanText = scan.percent ? `${scan.words}: ${scan.percent}%` : `${scan.words}…`;
   else if (found) {
     scanText = scan.guess
-      ? `No TOTAL line found: best guess is the largest price, check it. Line used: "${scan.line}"`
+      ? `No TOTAL line found: best guess, check it. Line used: "${scan.line}"`
       : `Read from receipt: check it. Line used: "${scan.line}"`;
     if (scan.reason) scanText += `. Fund: ${scan.reason}`;
     if (scan.typo) scanText += `. Typo? ${scan.typo}`;
   }
-  else if (scan && scan.status === "none") scanText = "Could not read a total, type it in.";
+  else if (scan && scan.status === "none") scanText = scan.reason === "no_amounts" ? RETAKE_HINT : "Could not read a total, type it in.";
   else if (scan && scan.status === "error") scanText = "Could not read this image. Type the amount in.";
   const seen = scan && scan.status === "none"
     ? `<details class="more ocr-seen"><summary>What the reader saw</summary><pre class="ocr-text">${escapeHtml(scan.text || "(no text at all: try more light, closer, flat)")}</pre></details>`

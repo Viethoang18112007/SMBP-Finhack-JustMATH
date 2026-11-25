@@ -14,7 +14,7 @@ import { api } from "./api.js";
 import { prefillAdd, quickAdd } from "./actions.js";
 import { registerOverlay, setHtml } from "./closers.js";
 import { openApp } from "./device.js";
-import { CATEGORIES, FUND_NAME, escapeHtml, hk } from "./format.js";
+import { CATEGORIES, FUND_NAME, RETAKE_HINT, escapeHtml, hk } from "./format.js";
 import { readTotal } from "./ocr.js";
 import { streakChip } from "./rewards.js";
 import { state } from "./store.js";
@@ -74,7 +74,7 @@ function resultHtml() {
   const entry = w.entry;
   if (!entry) return "";
   const receipt = w.receipt
-    ? `<p class="qa-line">${w.receipt.guess ? "Best guess (largest price), check it" : "Read from the receipt"}: "${escapeHtml(w.receipt.line || "")}"${w.receipt.merchant ? ` · ${escapeHtml(w.receipt.merchant)}` : ""}</p>`
+    ? `<p class="qa-line">${w.receipt.guess ? "Best guess, check it" : "Read from the receipt"}: "${escapeHtml(w.receipt.line || "")}"${w.receipt.merchant ? ` · ${escapeHtml(w.receipt.merchant)}` : ""}</p>`
     : "";
   const sure = entry.confident ? "" : `<span class="qa-unsure">Not sure: check the fund</span>`;
   const action = w.receipt
@@ -304,7 +304,7 @@ async function readImage(file, sample = null) {
       w.entry = result.entry;
       w.receipt = { merchant: result.merchant, line: result.line, amount: result.amount, guess: Boolean(result.guess) };
     } else {
-      w.error = "Could not find a total on this receipt. Try another photo, or type it in.";
+      w.error = result.reason === "no_amounts" ? RETAKE_HINT : "Could not find a total on this receipt. Try another photo, or type it in.";
     }
   } catch (err) {
     w.error = "Could not read this image. Try another photo, or type it in.";

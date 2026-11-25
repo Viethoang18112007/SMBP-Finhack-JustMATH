@@ -888,6 +888,26 @@ class ScanReceipt(unittest.TestCase):
         for source in (self.actions, widget):
             self.assertIn('readTotal(file, (text) => api("/api/receipt/parse", { text })', source)
 
+    def test_no_prices_read_asks_for_a_new_photo(self):
+        # The server answers reason "no_amounts" when fewer than 2 prices were read: no guess, a retake hint,
+        # and "What the reader saw" stays under it (Add payment) so the failed photo can be checked.
+        fmt = (JS_ROOT / "format.js").read_text(encoding="utf-8")
+        self.assertIn('export const RETAKE_HINT = "No prices were read. Retake the photo flat, from above, '
+                      'no fingers, whole ticket in frame.";', fmt)
+        widget = (JS_ROOT / "widget.js").read_text(encoding="utf-8")
+        scan = self.actions[self.actions.index("export async function scanReceipt"):]
+        self.assertIn('state.scan = { status: "none", text: read.slice(0, 800), reason: result.reason || "" };', scan)
+        self.assertIn('scan.reason === "no_amounts" ? RETAKE_HINT', self.add)
+        self.assertIn("What the reader saw", self.add)
+        self.assertIn('result.reason === "no_amounts" ? RETAKE_HINT', widget)
+
+    def test_a_guess_never_claims_the_largest_price(self):
+        # The best guess is no longer always the largest price (card line, subtotal, most frequent price).
+        widget = (JS_ROOT / "widget.js").read_text(encoding="utf-8")
+        for source in (self.add, widget):
+            self.assertNotIn("largest price", source)
+            self.assertIn("best guess, check it", source.lower())
+
     def test_never_saves_by_itself(self):
         scan = self.actions[self.actions.index("export async function scanReceipt"):]
         scan = scan[:scan.index("\n}\n")]

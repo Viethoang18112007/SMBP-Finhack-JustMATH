@@ -118,7 +118,7 @@ export async function scanReceipt(file) {
       typo: entry && entry.typo ? entry.typo.reason : "" };
   } else {
     // What the reader saw, so a failed photo can be checked (and sent to us) instead of guessed at.
-    state.scan = { status: "none", text: read.slice(0, 800) };
+    state.scan = { status: "none", text: read.slice(0, 800), reason: result.reason || "" };
   }
   render();
 }
