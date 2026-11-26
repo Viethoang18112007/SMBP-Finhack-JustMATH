@@ -90,6 +90,26 @@ def rebalance(amounts, fund, target, total, floors=None, locked=()):
     return {f: result[f] for f in FUNDS}
 
 
+def fit_total(amounts, total, locked=()):
+    """The six funds scaled to add up to exactly `total`, in proportion to what each holds.
+
+    Used when the funds are over the total (for example after the total went down): never more
+    than 100%. Locked funds keep their amount when they fit; otherwise every fund scales.
+    Largest remainder, so no cent is lost.
+    """
+    if _cents(total, "The total") < 0:
+        raise ValueError("The total can't be negative.")
+    current = {f: max(_cents(amounts.get(f, 0), f), 0) for f in FUNDS}
+    keep = [f for f in FUNDS if f in locked]
+    kept = sum(current[f] for f in keep)
+    moving = [f for f in FUNDS if f not in locked]
+    if not moving or kept > total:
+        return distribute(total, current)
+    result = {f: current[f] for f in keep}
+    result.update(distribute(total - kept, {f: current[f] for f in moving}))
+    return {f: result[f] for f in FUNDS}
+
+
 def percents(amounts, total, scale=100):
     """Each fund's share as whole parts of `scale` (100: percents, 1000: tenths of a percent)
     that always add up to exactly `scale` (0 each when the total is 0)."""

@@ -86,6 +86,12 @@ class Rebalance(unittest.TestCase):
         self.check(top)
         self.assertEqual(top, amounts(self.TOTAL, 0, 0, 0, 0, 0))
 
+    def test_from_the_grab_amounts_the_split_comes_back(self):
+        top = split.rebalance(self.START, "main", self.TOTAL, self.TOTAL)
+        self.assertEqual(top, amounts(self.TOTAL, 0, 0, 0, 0, 0))
+        # Computed from the amounts at grab time (not from `top`), the old split returns exactly.
+        self.assertEqual(split.rebalance(self.START, "main", 60000, self.TOTAL), self.START)
+
     def test_others_at_zero_share_equally_when_money_comes_back(self):
         start = amounts(self.TOTAL, 0, 0, 0, 0, 0)
         result = split.rebalance(start, "main", self.TOTAL - 1, self.TOTAL)
@@ -162,6 +168,37 @@ class Rebalance(unittest.TestCase):
             split.rebalance({**self.START, "main": 1.5}, "main", 10, self.TOTAL)
 
 
+class FitTotal(unittest.TestCase):
+    """Never more than 100%: funds above the total shrink in proportion, to the cent."""
+
+    def test_shrinks_in_proportion(self):
+        start = amounts(80000, 10000, 30000, 20000, 20000, 40000)  # 200000, the total is now 150000
+        result = split.fit_total(start, 150000)
+        self.assertEqual(result, amounts(60000, 7500, 22500, 15000, 15000, 30000))
+
+    def test_locked_funds_stay_when_they_fit(self):
+        start = amounts(80000, 10000, 30000, 20000, 20000, 40000)
+        result = split.fit_total(start, 150000, locked={"savings"})
+        self.assertEqual(result["savings"], 40000)
+        self.assertEqual(sum(result.values()), 150000)
+        too_big = split.fit_total(start, 30000, locked={"savings"})  # the lock alone is over the total
+        self.assertEqual(sum(too_big.values()), 30000)
+
+    def test_rounding_and_zero(self):
+        self.assertEqual(sum(split.fit_total(amounts(1, 1, 1, 0, 0, 0), 2).values()), 2)
+        self.assertEqual(split.fit_total(amounts(5, 0, 0, 0, 0, 0), 0), amounts(0, 0, 0, 0, 0, 0))
+
+    def test_random(self):
+        rng = random.Random(5)
+        for _ in range(300):
+            start = {f: rng.randint(0, 50000) for f in FUNDS}
+            total = rng.randint(0, 300000)
+            locked = {f for f in FUNDS if rng.random() < 0.2}
+            result = split.fit_total(start, total, locked=locked)
+            self.assertEqual(sum(result.values()), total)
+            self.assertTrue(all(type(v) is int and v >= 0 for v in result.values()))
+
+
 class Percents(unittest.TestCase):
     def test_whole_percents_always_sum_to_100(self):
         rng = random.Random(3)
@@ -201,11 +238,11 @@ class SameAnswersInTheBrowser(unittest.TestCase):
             cases.append({"amounts": start, "fund": fund, "target": rng.randint(-50, total + 50), "total": total,
                           "floors": floors, "locked": locked})
         script = (
-            "import { rebalance, percents } from " + json.dumps(SPLIT_JS.as_uri()) + ";\n"
+            "import { rebalance, percents, fitTotal } from " + json.dumps(SPLIT_JS.as_uri()) + ";\n"
             "let data = ''; process.stdin.on('data', (c) => data += c); process.stdin.on('end', () => {\n"
             "  const out = JSON.parse(data).map((c) => { const r = rebalance(c.amounts, c.fund, c.target, c.total,"
             " { floors: c.floors, locked: new Set(c.locked) }); return { r, p: percents(r, c.total),"
-            " t: percents(r, c.total, 1000) }; });\n"
+            " t: percents(r, c.total, 1000), f: fitTotal(c.amounts, c.total, { locked: new Set(c.locked) }) }; });\n"
             "  process.stdout.write(JSON.stringify(out)); });\n"
         )
         proc = subprocess.run(["node", "--input-type=module", "-e", script], input=json.dumps(cases),
@@ -218,6 +255,8 @@ class SameAnswersInTheBrowser(unittest.TestCase):
             self.assertEqual(answer["r"], want, case)
             self.assertEqual(answer["p"], split.percents(want, case["total"]), case)
             self.assertEqual(answer["t"], split.percents(want, case["total"], scale=1000), case)
+            self.assertEqual(answer["f"], split.fit_total(case["amounts"], case["total"], locked=set(case["locked"])),
+                             case)
 
 
 class SliderUi(unittest.TestCase):
@@ -231,6 +270,10 @@ class SliderUi(unittest.TestCase):
         self.assertIn('from "./split.js"', self.budget)
         self.assertIn("rebalance(", self.budget)
         self.assertIn("percents(", self.budget)
+        self.assertIn("fitTotal(", self.budget)
+        # A drag starts from the amounts at grab time: up to the top and back restores the split.
+        self.assertIn("dragBase", self.budget)
+        self.assertIn("moveFund(slider.dataset.slider, Number(slider.value) * 100, null, dragBase)", self.budget)
 
     def test_one_dollar_steps_and_frames(self):
         self.assertIn('data-slider="${id}"', self.budget)

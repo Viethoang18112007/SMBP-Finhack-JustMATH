@@ -78,6 +78,24 @@ export function rebalance(amounts, fund, target, total, { floors = {}, locked = 
 
 // Each fund's share in whole parts of `scale` (100: percents, 1000: tenths) that always add up
 // to exactly `scale` (0 each when the total is 0).
+export function fitTotal(amounts, total, { locked = new Set() } = {}) {
+  // The six funds scaled to add up to exactly `total`, in proportion to what each holds (never
+  // more than 100%). Locked funds keep their amount when they fit; otherwise every fund scales.
+  if (cents(total, "The total") < 0) throw new Error("The total can't be negative.");
+  const current = {};
+  for (const f of FUNDS) current[f] = Math.max(cents(amounts[f] ?? 0, f), 0);
+  const keep = FUNDS.filter((f) => locked.has(f));
+  const kept = keep.reduce((acc, f) => acc + current[f], 0);
+  const moving = FUNDS.filter((f) => !locked.has(f));
+  if (!moving.length || kept > total) return distribute(total, current);
+  const weights = {};
+  for (const f of moving) weights[f] = current[f];
+  const shares = distribute(total - kept, weights);
+  const result = {};
+  for (const f of FUNDS) result[f] = locked.has(f) ? current[f] : shares[f];
+  return result;
+}
+
 export function percents(amounts, total, scale = 100) {
   const zero = Object.fromEntries(FUNDS.map((f) => [f, 0]));
   if (cents(total, "The total") <= 0) return zero;

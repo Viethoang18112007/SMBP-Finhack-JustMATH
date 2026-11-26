@@ -15,7 +15,7 @@
 
 import { setHtml } from "./closers.js";
 import { FLEX_FUNDS, FUND_FIELDS, FUND_NAME, FUND_ORDER, escapeHtml, hk, parseAmount, plainAmount } from "./format.js";
-import { distribute, percents, rebalance } from "./split.js";
+import { fitTotal, percents, rebalance } from "./split.js";
 import { state } from "./store.js";
 
 // Used only if the server sent no split (it always does).
@@ -253,7 +253,8 @@ function footHtml(amounts, total) {
   const text = diff > 0 ? `${hk(diff)} left to assign` : `${hk(-diff)} more than the total`;
   const fix = diff > 0
     ? `<button class="ghost small" type="button" id="rest-to-savings">Put the rest in Long-term Savings</button>`
-    : `<button class="ghost small" type="button" id="match-total">Make the total ${hk(assigned)}</button>`;
+    : (total > 0 ? `<button class="ghost small" type="button" id="fit-total">Shrink the funds to ${hk(total)}</button>` : "")
+      + `<button class="ghost small" type="button" id="match-total">Make the total ${hk(assigned)}</button>`;
   return `<span class="foot-warn">${pct}% assigned · ${text}</span><strong class="num" id="budget-total">${hk(assigned)}</strong>${fix}`;
 }
 
@@ -304,13 +305,13 @@ function floorsOf() {
 // Move one fund to `cents`; the other unlocked funds follow so the six add up to the total.
 // Without a total yet (HK$0), only that fund changes and the foot offers to match the total.
 // `skip` is the field being typed in: left as typed unless the amount had to be clamped.
-function moveFund(fund, cents, skip) {
+function moveFund(fund, cents, skip, base = null) {
   const total = readTotal() || 0;
   if (!(total > 0)) {
     setAmounts({ ...cleanAmounts(readAmounts()), [fund]: Math.max(cents, 0) }, skip);
     return;
   }
-  const next = rebalance(cleanAmounts(readAmounts()), fund, Math.max(cents, 0), total, { floors: floorsOf(), locked });
+  const next = rebalance(base || cleanAmounts(readAmounts()), fund, Math.max(cents, 0), total, { floors: floorsOf(), locked });
   setAmounts(next, next[fund] === cents ? skip : null);
 }
 
@@ -346,6 +347,14 @@ function hideBubble(slider) {
   if (bubble) bubble.hidden = true;
 }
 
+// The six amounts when a slider was grabbed (pointer or keyboard focus): every step of the drag
+// starts from them, so pushing a fund to the top and back gives the others their old split back
+// (instead of sharing equally once they reached HK$0). Cleared when the slider loses focus.
+let dragBase = null;
+function grab() {
+  dragBase = cleanAmounts(readAmounts());
+}
+
 // Slider input arrives faster than the screen paints: keep the latest, apply it once per frame.
 let frame = 0;
 let pending = null;
@@ -359,7 +368,7 @@ function applySlider() {
   const slider = pending;
   pending = null;
   if (!slider || !slider.isConnected) return;
-  moveFund(slider.dataset.slider, Number(slider.value) * 100, null);
+  moveFund(slider.dataset.slider, Number(slider.value) * 100, null, dragBase);
   refresh();
   showBubble(slider);
 }
@@ -373,6 +382,13 @@ function bindFoot() {
     refresh();
     saveDraft();
   });
+  // Over 100%: every fund shrinks in proportion (locked ones stay when they fit).
+  document.getElementById("fit-total")?.addEventListener("click", () => {
+    const total = readTotal() || 0;
+    if (total > 0) setAmounts(fitTotal(cleanAmounts(readAmounts()), total, { locked }));
+    refresh();
+    saveDraft();
+  });
   document.getElementById("match-total")?.addEventListener("click", () => {
     const amounts = readAmounts();
     document.getElementById("week-total").value = plainAmount(FUND_ORDER.reduce((acc, f) => acc + (amounts[f] || 0), 0));
@@ -381,18 +397,6 @@ function bindFoot() {
   });
 }
 
-// A new total keeps each fund's share: exact proportional parts (largest remainder), locked
-// funds kept when they still fit.
-function scaleTo(amounts, total) {
-  const clean = cleanAmounts(amounts);
-  const keep = FUND_ORDER.filter((f) => locked.has(f));
-  const kept = keep.reduce((acc, f) => acc + clean[f], 0);
-  const moving = FUND_ORDER.filter((f) => !keep.includes(f));
-  if (!moving.length || kept > total) return distribute(total, clean);
-  const weights = {};
-  for (const f of moving) weights[f] = clean[f];
-  return { ...clean, ...distribute(total - kept, weights) };
-}
 
 function toggleLock(btn) {
   const fund = btn.dataset.lock;
@@ -421,11 +425,13 @@ export function bindBudget() {
     const amounts = readAmounts();
     if (total > 0 && sum(amounts) === 0) {
       setAmounts(splitAmounts(total, splitOf().suggested));
-    } else if (lastTotal > 0) {
-      const assignedBefore = sum(cleanAmounts(amounts));
-      if (assignedBefore === lastTotal) {
-        setAmounts(scaleTo(amounts, total)); // keep it at exactly 100%
-      } else {
+    } else {
+      const assigned = sum(cleanAmounts(amounts));
+      if (total > 0 && (assigned > total || (lastTotal > 0 && assigned === lastTotal))) {
+        // Never more than 100%: funds over the new total shrink in proportion (locked ones stay
+        // when they fit), and a split that was exactly 100% stays exactly 100%.
+        setAmounts(fitTotal(cleanAmounts(amounts), total, { locked }));
+      } else if (lastTotal > 0) {
         const scaled = {};
         for (const fund of FUND_ORDER) scaled[fund] = Math.floor(((amounts[fund] || 0) * total) / lastTotal);
         setAmounts(scaled);
@@ -473,9 +479,18 @@ export function bindBudget() {
       saveDraft();
       if (document.activeElement !== slider) hideBubble(slider);
     });
-    slider.addEventListener("pointerdown", () => showBubble(slider));
-    slider.addEventListener("focus", () => showBubble(slider));
-    slider.addEventListener("blur", () => hideBubble(slider));
+    slider.addEventListener("pointerdown", () => {
+      grab();
+      showBubble(slider);
+    });
+    slider.addEventListener("focus", () => {
+      grab();
+      showBubble(slider);
+    });
+    slider.addEventListener("blur", () => {
+      dragBase = null;
+      hideBubble(slider);
+    });
     slider.addEventListener("pointerup", () => { if (document.activeElement !== slider) hideBubble(slider); });
   });
   document.querySelectorAll("[data-lock]").forEach((btn) => btn.addEventListener("click", () => toggleLock(btn)));
