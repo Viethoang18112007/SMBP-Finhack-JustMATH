@@ -79,7 +79,10 @@ class DeviceApi(ApiTest):
         self.ok("POST", "/api/shortcut/wallet", {"amount": "20", "merchant": "Shop"}, device)
         first = self.state(device)["inbox"][0]
         self.ok("POST", "/api/inbox/confirm", {"id": first["id"], "category": "main"}, device)
-        self.ok("POST", "/api/feedback", {"rating": 5, "text": "Nice"}, device)
+        # Older backups hold feedback rows. New feedback goes to the private feedback box, not into
+        # a phone's data, so the row is written to the phone's store directly.
+        with self.server.device_service(device)._books["live"].session(write=True) as s:
+            s.add_feedback(5, "Nice")
 
 
 class Document(DeviceApi):

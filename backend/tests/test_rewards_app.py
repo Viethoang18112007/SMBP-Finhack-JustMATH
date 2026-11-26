@@ -168,11 +168,12 @@ class RewardsApi(ApiTest):
         self.call("POST", "/api/payments", {"amount": "30", "category": "main", "place": "node/1"}, status=400)
 
     def test_feedback_routes(self):
-        self.assertEqual(self.call("GET", "/api/feedback"), {"feedback": []})
+        # Feedback is private (feedback.py): sending answers only a thank-you; nobody can list it.
+        self.call("GET", "/api/feedback", status=404)
         data = self.call("POST", "/api/feedback", {"rating": 4, "text": "Good"})
-        self.assertEqual(data["feedback"][0]["rating"], 4)
+        self.assertEqual(set(data), {"ok", "id", "thanks"})
         self.call("POST", "/api/feedback", {"rating": 9, "text": "Good"}, status=400)
-        self.call("POST", "/api/feedback", {"text": "Good"}, status=400)
+        self.call("POST", "/api/feedback", {"text": "  "}, status=400)  # neither a rating nor words
 
 
 if __name__ == "__main__":

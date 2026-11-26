@@ -206,7 +206,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (920 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (944 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 
@@ -424,10 +424,36 @@ All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: 
 | `POST /api/inbox` | `{"source", "amount": "38", "merchant", "card", "externalId"}` | Add an incoming (simulated) payment to review; the same `externalId` is added once (`"created": false`) |
 | `POST /api/inbox/confirm` | `{"id": 3, "category": "main", "choice"?: ..., "amount"?: "24.50", "typoChecked"?: true}` | Confirm it into a fund through the same logic as `/api/payments` (same `needsConfirm` step). An amount-unknown item needs `amount` (> 0); an amount far above normal first answers `{"needsTypoCheck": true, "typo"}` until it is sent again with `typoChecked: true` |
 | `POST /api/inbox/dismiss` | `{"id": 3}` | Dismiss it; nothing is saved |
+| `POST /api/feedback` | `{"rating"?: 1 to 5, "message"?: "<at most 500 characters>", "screen": "today" \| "map" \| ..., "contextId"?: "recipe:congee", "deviceId"?: "<32 hex>"}` | Send private feedback (a rating, a message, or both). The answer is only `{"ok", "id", "thanks"}`: there is no route that lists feedback for users |
+| `GET /api/admin/feedback` | header `Authorization: Bearer <SSUST_ADMIN_TOKEN>` | Team only: every entry, newest first. 404 when the variable is not set, 401 for a wrong or missing token |
 
 The state also carries `fresh` (true when the server holds no budget data for this book: a new phone or a wiped disk), `rewards` (`streak`, `lastWeek`, `medals`, `badges`), `projection`, `insights`, `inbox` (pending items with `suggestedFund`, `suggestedReason` and `typo`) and `connected`. Food places can carry `priceRange` (`min`, `max`, `sourceName`, `sourceUrl`, `checkedOn`, `note`) with the statuses `range_fits`, `range_may`, `range_over`, or `chain` (`chain`, `what`, `lowCents`, `highCents`, `sources`, `checkedOn`, `needsCheck`) with `chain_fits`, `chain_tight`, `chain_over`; `budget` adds `rangeRecords` and `chainRecords`.
 
 Categories are `main`, `snack`, `fixed`, `experience`, `development`. Every other path serves a file from `frontend/`.
+
+## Feedback (private)
+
+Settings has a **Feedback** card: a 1 to 5 rating and an optional message (at most 500 characters). Students only ever get "Thanks" back. No route returns feedback to the app, so nobody can read anyone else's feedback, not even their own after sending it.
+
+What is stored, in `data/feedback.db` (one file for Live and Demo, never in git): id, time (UTC), rating, message, screen, an optional context id (for example a recipe), the app version, and an optional anonymous id for the browser (32 random hex characters, made in the browser; the student can untick it). No name, e-mail, account or IP address. The server checks every field and its size (`backend/ssust/feedback.py`).
+
+How the team reads it:
+
+1. **On the computer that runs the server**, export everything to a spreadsheet file:
+   ```sh
+   python run.py --export-feedback feedback.csv
+   ```
+   (`--data DIR` if the data folder is not `data/`). Cells that start with `=`, `+`, `-` or `@` get a leading `'` so a spreadsheet never runs them.
+2. **Through the server**, set a long random token before starting it, then open <http://127.0.0.1:8765/admin/feedback> and paste the token:
+   ```sh
+   # macOS / Linux
+   SSUST_ADMIN_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" python3 run.py
+   # Windows PowerShell
+   $env:SSUST_ADMIN_TOKEN = python -c "import secrets; print(secrets.token_urlsafe(32))"; python run.py
+   ```
+   Scripts can call the API directly: `curl -H "Authorization: Bearer $SSUST_ADMIN_TOKEN" http://127.0.0.1:8765/api/admin/feedback`.
+
+Without `SSUST_ADMIN_TOKEN`, `/api/admin/feedback` and `/admin/feedback` answer 404 (they do not exist). A wrong or missing token gets 401. The token is only read from the `Authorization` header, compared in constant time, and never logged (the request log also drops every query string). On a local install the feedback stays on that computer: the team reads it from a hosted server or from exported CSV files.
 
 ## Limits
 

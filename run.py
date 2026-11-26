@@ -1,6 +1,7 @@
 """Start SSUST with one command, from any folder, on Windows, macOS or Linux.
 
     python run.py [--port 8765] [--data DIR] [--demo] [--no-browser]
+    python run.py --export-feedback feedback.csv   (team: every feedback entry as CSV, then exit)
 
 Standard library only. The app listens on 127.0.0.1 (this computer only).
 Press Ctrl+C to stop it.
@@ -14,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "backend"))
 
+from ssust import feedback  # noqa: E402
 from ssust.dates import LiveClock  # noqa: E402
 from ssust.server import HOST, PORT, AppServer, make_server  # noqa: E402
 
@@ -38,6 +40,8 @@ def parse_args(argv):
                         help="folder for the live and demo database files (default: data/ next to run.py)")
     parser.add_argument("--demo", action="store_true", help="start in demo mode on the sample week")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    parser.add_argument("--export-feedback", type=Path, metavar="FILE",
+                        help="write every feedback entry in the data folder to FILE (CSV) and exit")
     args = parser.parse_args(argv)
     args.data = args.data.resolve()
     return args
@@ -49,6 +53,10 @@ def main(argv=None, on_ready=None):
     `on_ready(server)` is called once the port is bound, before serving.
     """
     args = parse_args(argv)
+    if args.export_feedback:
+        count = feedback.export_csv(args.data / feedback.FEEDBACK_FILE, args.export_feedback)
+        print(f"Wrote {count} feedback {'entry' if count == 1 else 'entries'} to {args.export_feedback.resolve()}")
+        return 0
     try:
         server = make_server(args.data, LiveClock(), port=args.port)
     except OSError as error:

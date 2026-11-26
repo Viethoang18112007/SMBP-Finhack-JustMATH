@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>SSUST feedback (team)</title>
+  <link rel="icon" type="image/png" href="/img/icon-64.png">
+  <link rel="stylesheet" href="/admin/feedback.css">
+</head>
+<body>
+  <main>
+    <h1>SSUST feedback</h1>
+    <p class="note">Team only. The token is the value of <code>SSUST_ADMIN_TOKEN</code> on the server. It stays in this tab's memory and is sent in the Authorization header only.</p>
+    <form id="login" autocomplete="off">
+      <label for="token">Admin token</label>
+      <input id="token" type="password" required>
+      <button type="submit">Load feedback</button>
+    </form>
+    <p id="status" role="status" aria-live="polite"></p>
+    <div id="summary"></div>
+    <table id="list" hidden>
+      <thead><tr><th>When (UTC)</th><th>Rating</th><th>Screen</th><th>Context</th><th>Message</th><th>Version</th><th>Device</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </main>
+  <script src="/admin/feedback.js"></script>
+</body>
+</html>

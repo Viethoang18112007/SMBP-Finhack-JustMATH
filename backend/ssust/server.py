@@ -13,6 +13,7 @@ to the server log only, never to the client).
 
 import json
 import re
+import os
 import socket
 import sys
 import threading
@@ -21,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from . import money, places, prices
+from . import feedback, money, places, prices
 from .service import Service, ServiceError
 from .store import open_books
 from .validate import parse_amount
@@ -64,6 +65,13 @@ CORS_PREFLIGHT = (
     ("Access-Control-Max-Age", "600"),
 )
 SERVER_ERROR = "Something went wrong on the server. Try again."
+# The team-only feedback page (served only when SSUST_ADMIN_TOKEN is set; it holds no data itself).
+ADMIN_DIR = Path(__file__).resolve().parent / "admin"
+ADMIN_FILES = {
+    "/admin/feedback": ("feedback.html", TYPES[".html"]),
+    "/admin/feedback.js": ("feedback.js", TYPES[".js"]),
+    "/admin/feedback.css": ("feedback.css", TYPES[".css"]),
+}
 DRAIN_BYTES = 1_000_000  # unread request bytes discarded before closing a connection
 DRAIN_SECONDS = 1.0
 
@@ -79,13 +87,16 @@ class TooManyDevices(RuntimeError):
 class AppServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address, service, places_fetcher, quiet, public_hosts=(), device_factory=None):
+    def __init__(self, address, service, places_fetcher, quiet, public_hosts=(), device_factory=None,
+                 feedback_box=None, admin_token=None):
         self.service = service
         self.device_factory = device_factory  # device id -> Service, for the iPhone app
         self.devices = {}
         self.devices_lock = threading.Lock()
         self.places_fetcher = places_fetcher
         self.quiet = quiet
+        self.feedback = feedback_box
+        self.admin_token = admin_token or None  # None: the admin routes do not exist (404)
         super().__init__(address, Handler)
         port = self.server_address[1]
         # public_hosts: exact host names a hosting proxy sends (serve.py); empty when run locally.
@@ -122,14 +133,17 @@ class AppServer(ThreadingHTTPServer):
         self.close_request(request)
 
 
-def make_server(data_dir, clock, port=0, places_fetcher=None, quiet=False, host=HOST, public_hosts=()):
+def make_server(data_dir, clock, port=0, places_fetcher=None, quiet=False, host=HOST, public_hosts=(),
+                admin_token=None):
     """A server on `host`:`port` (0 picks a free port; read it from server_address).
 
     `host` is 127.0.0.1 unless a hosting platform runs it (serve.py). `public_hosts`
     are extra exact Host header values to trust (the public host name).
 
-    `data_dir` holds the live and demo database files. `places_fetcher(kind,
-    radius_km)` gives live places; it defaults to the Overpass fetch.
+    `data_dir` holds the live and demo database files and the feedback file. `places_fetcher(kind,
+    radius_km)` gives live places; it defaults to the Overpass fetch. `admin_token` opens the
+    team-only feedback routes; by default it comes from the SSUST_ADMIN_TOKEN environment variable
+    (unset or empty: no admin routes).
     """
     records, problems = prices.load_verified()
     if problems and not quiet:
@@ -148,7 +162,11 @@ def make_server(data_dir, clock, port=0, places_fetcher=None, quiet=False, host=
     def device_factory(device):
         return Service(open_books(devices / device), clock, verified=records, chains=chains)
 
-    return AppServer((host, port), service, fetcher, quiet, tuple(public_hosts), device_factory)
+    if admin_token is None:
+        admin_token = os.environ.get(feedback.TOKEN_ENV, "").strip()
+    box = feedback.FeedbackBox(Path(data_dir) / feedback.FEEDBACK_FILE)
+    return AppServer((host, port), service, fetcher, quiet, tuple(public_hosts), device_factory,
+                     feedback_box=box, admin_token=admin_token)
 
 
 def _text(value, what):
@@ -174,7 +192,13 @@ class Handler(BaseHTTPRequestHandler):
     # plumbing
     def log_message(self, fmt, *args):
         if not self.server.quiet:
-            print("[%s] %s" % (self.log_date_time_string(), fmt % args))
+            # Query strings are never logged (a token pasted into a URL must not reach the log);
+            # headers (where the admin token belongs) are never logged either.
+            text = fmt % args
+            line = getattr(self, "requestline", "")
+            if "?" in line:
+                text = text.replace(line, line.split("?", 1)[0] + "?[redacted] " + line.rsplit(" ", 1)[-1])
+            print("[%s] %s" % (self.log_date_time_string(), text))
 
     def end_headers(self):
         for name, value in SECURITY_HEADERS:
@@ -217,7 +241,7 @@ class Handler(BaseHTTPRequestHandler):
             action()
         except ServiceError as exc:
             self.send_error_json(400, str(exc), exc.details)
-        except BadRequest as exc:
+        except (BadRequest, feedback.FeedbackError) as exc:
             self.send_error_json(400, str(exc))
         except TooManyDevices as exc:
             self.send_error_json(503, str(exc))
@@ -304,8 +328,10 @@ class Handler(BaseHTTPRequestHandler):
             self.get_places(query)
         elif path == "/api/insights":
             self.send_json(self.service.insights())
-        elif path == "/api/feedback":
-            self.send_json(self.service.feedback())
+        elif path == "/api/admin/feedback":
+            self.get_admin_feedback()
+        elif path in ADMIN_FILES:
+            self.send_admin_file(path)
         elif path == "/api/widget":
             self.send_json(self.service.widget())
         elif path == "/api/shortcut/today":
@@ -363,6 +389,43 @@ class Handler(BaseHTTPRequestHandler):
         if not file_path.is_relative_to(root) or file_path.suffix not in TYPES or not file_path.is_file():
             return None
         return file_path
+
+    # feedback: anyone may send it, only the team reads it
+    def post_feedback(self, data):
+        entry = feedback.parse_request(data)
+        entry_id = self.server.feedback.add(**entry)
+        # Only a thank-you goes back: never a list, never anyone else's feedback.
+        self.send_json({"ok": True, "id": entry_id, "thanks": "Thanks! Only the SSUST team can read this."})
+
+    def admin_allowed(self):
+        """True when this request may read feedback; else 404 (admin off) or 401 is already sent."""
+        if not self.server.admin_token:
+            self.send_error_json(404, "Not found.")
+            return False
+        if not feedback.token_ok(self.server.admin_token, self.headers.get("Authorization")):
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Bearer realm="ssust-admin"')
+            body = json.dumps({"error": "Admin token required."}).encode("utf-8")
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return False
+        return True
+
+    def get_admin_feedback(self):
+        if not self.admin_allowed():
+            return
+        rows = self.server.feedback.all()
+        self.send_json({"count": len(rows), "feedback": rows})
+
+    def send_admin_file(self, path):
+        """The admin page itself holds no data (it asks for the token); hidden when admin is off."""
+        if not self.server.admin_token:
+            self.send_error_json(404, "Not found.")
+            return
+        name, content_type = ADMIN_FILES[path]
+        self.send_body(200, (ADMIN_DIR / name).read_bytes(), content_type)
 
     # actions
     def get_places(self, query):
@@ -459,5 +522,3 @@ class Handler(BaseHTTPRequestHandler):
         # Whatever a Shortcut sends: a merchant or card that is not text is left out, never refused.
         self.send_json(self.service.wallet_tap(data.get("amount"), data.get("merchant"), data.get("card")))
 
-    def post_feedback(self, data):
-        self.send_json(self.service.add_feedback(data.get("rating"), data.get("text", "")))
