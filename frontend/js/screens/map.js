@@ -2,6 +2,7 @@ import { escapeHtml, hk, humanize, shortDate } from "../format.js";
 import { shownPlaces, statusOf } from "../mapview.js";
 import { medalLine } from "../rewards.js";
 import { state } from "../store.js";
+import { groceriesPanel, isPicked } from "./groceries.js";
 
 function campusName() {
   const found = state.data.campuses.find((c) => c.id === state.data.campus);
@@ -21,6 +22,15 @@ function mapControls() {
       <label class="select"><span class="sr-only">Campus</span><select id="campus" data-campus>${campuses}</select></label>
       <label class="select"><span class="sr-only">Distance from campus</span><select id="radius">${radii}</select></label>
     </div>`;
+}
+
+// Eat out (food places and what fits today) or Groceries (cook: recipes, shopping list, trip).
+function modeSwitch() {
+  const food = state.mapKind === "food";
+  const groc = state.mapKind === "grocery";
+  return `<div class="seg map-mode" role="group" aria-label="Map mode">`
+    + `<button type="button" data-kind="food" class="${food ? "on" : ""}" aria-pressed="${food}">Eat out</button>`
+    + `<button type="button" data-kind="grocery" class="${groc ? "on" : ""}" aria-pressed="${groc}">Groceries</button></div>`;
 }
 
 // The MVP is about food decisions: the Shopping layer stays available but folded away.
@@ -102,7 +112,18 @@ function sourceText(place) {
   return url ? `<a class="place-src" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${text}</a>` : `<span class="place-src">${text}</span>`;
 }
 
+function groceryRow(place) {
+  const picked = isPicked(place.id) ? " picked" : "";
+  const prices = place.chainName ? `${place.chainName} prices` : "prices: estimate";
+  const meta = [humanize(place.detail) || "Shop", `${place.distanceKm} km`, prices].join(" · ");
+  return `<button type="button" class="place status-shop${picked}" data-key="pl-${escapeHtml(place.id)}" data-place="${escapeHtml(place.id)}" aria-pressed="${Boolean(picked)}">`
+    + `<span class="dot status-shop" aria-hidden="true"></span>`
+    + `<span class="place-body"><span class="place-name">${escapeHtml(place.name)}</span>`
+    + `<span class="tag">${escapeHtml(meta)}</span><span class="pick-mark">${picked ? "Comparing" : "Tap to compare"}</span></span></button>`;
+}
+
 function placeRow(place) {
+  if (state.mapKind === "grocery") return groceryRow(place);
   const on = place.id === state.selectedId ? " on" : "";
   const status = statusOf(place);
   const badge = place.label ? `<span class="badge status-${status}">${escapeHtml(place.label)}</span>` : "";
@@ -128,7 +149,7 @@ function placeRow(place) {
 
 export function mapScreen() {
   const data = state.mapLoading ? null : state.map;
-  const controls = mapControls();
+  const controls = `${modeSwitch()}${mapControls()}`;
   if (!data) {
     const loading = state.data.mode === "demo" ? "Loading the offline snapshot…" : "Loading places from OpenStreetMap…";
     const message = state.mapLoading ? loading : (state.error || loading);
@@ -137,7 +158,7 @@ export function mapScreen() {
     return `${controls}<div class="map-wait"><div class="${cls}"${role}>${escapeHtml(message)}</div></div>`;
   }
   const places = shownPlaces(data);
-  const noun = data.kind === "food" ? "food places" : "shops";
+  const noun = data.kind === "food" ? "food places" : data.kind === "grocery" ? "grocery stores" : "shops";
   let rows;
   if (places.length) rows = places.map(placeRow).join("");
   else if (data.places.length) rows = `<p class="empty-line">Nothing nearby fits today. Turn off "Could fit" to see all.</p>`;
@@ -145,7 +166,7 @@ export function mapScreen() {
   const count = data.total > data.shown
     ? `Nearest ${places.length} of ${data.total} ${noun}`
     : `${places.length} ${noun}`;
-  const budget = data.budget ? budgetBlock(data) : "";
+  const budget = data.kind === "grocery" ? groceriesPanel() : data.budget ? budgetBlock(data) : "";
   return `${controls}
     <div id="osm-map" role="region" aria-label="Map of places around ${escapeHtml(data.center.name || campusName())}"></div>
     <div class="source" id="map-source">${escapeHtml(sourceLabel(data))} · © OpenStreetMap contributors</div>

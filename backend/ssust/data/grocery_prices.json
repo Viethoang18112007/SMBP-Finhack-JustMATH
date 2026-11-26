@@ -1,0 +1,977 @@
+{
+ "source": "Consumer Council, Online Price Watch (open data, DATA.GOV.HK)",
+ "sourceUrl": "https://online-price-watch.consumer.org.hk/opw/opendata/pricewatch.json",
+ "checkedOn": "2026-11-26",
+ "note": "Shelf prices of the listed products on that day; offers not applied. Prices change: estimate.",
+ "chains": {
+  "WELLCOME": "Wellcome",
+  "PARKNSHOP": "PARKnSHOP",
+  "JASONS": "Market Place by Jasons",
+  "AEON": "AEON",
+  "DCHFOOD": "DCH Food Mart",
+  "LUNGFUNG": "Lung Fung",
+  "WATSONS": "Watsons",
+  "MANNINGS": "Mannings",
+  "SASA": "Sasa"
+ },
+ "ingredients": {
+  "rice": {
+   "name": "White rice",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000004619",
+     "brand": "Imperial Banquet",
+     "name": "Premium That Fragrant Rice 1kg",
+     "nameZh": "Ａ級泰國茉莉香米 1公斤",
+     "pack": 1000,
+     "prices": {
+      "PARKNSHOP": 2300
+     }
+    },
+    {
+     "code": "P000003771",
+     "brand": "Yu Pin King",
+     "name": "Thai Jasmine Fragrant Rice 2kg",
+     "nameZh": "優質泰國茉莉香米 2公斤",
+     "pack": 2000,
+     "prices": {
+      "JASONS": 3000,
+      "WELLCOME": 3000
+     }
+    },
+    {
+     "code": "P000004624",
+     "brand": "Imperial Banquet",
+     "name": "PEARL RICE 2KG",
+     "nameZh": "珍珠米 2公斤",
+     "pack": 2000,
+     "prices": {
+      "PARKNSHOP": 3450
+     }
+    }
+   ]
+  },
+  "egg": {
+   "name": "Eggs",
+   "unit": "pc",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000003615",
+     "brand": "BESTbuy",
+     "name": "Fresh Brown Eggs (L) 12pcs",
+     "nameZh": "中國新鮮啡蛋 (大) 12隻",
+     "pack": 12,
+     "prices": {
+      "PARKNSHOP": 1900
+     }
+    },
+    {
+     "code": "P000005068",
+     "brand": "Meadows",
+     "name": "Cage Free (Large) Eggs 10PC",
+     "nameZh": "非籠養雞蛋 (大) 10隻",
+     "pack": 10,
+     "prices": {
+      "JASONS": 2700,
+      "WELLCOME": 2500
+     }
+    },
+    {
+     "code": "P000004046",
+     "brand": "Shin Kigen Ran",
+     "name": "White Eggs 10pcs",
+     "nameZh": "白蛋 10隻",
+     "pack": 10,
+     "prices": {
+      "AEON": 2990,
+      "JASONS": 2700,
+      "PARKNSHOP": 3200,
+      "WELLCOME": 2700
+     }
+    },
+    {
+     "code": "P000001442",
+     "brand": "DQY Ecological (Deqingyuan)",
+     "name": "Fresh Eggs Grade AA - Large 8pcs 424g",
+     "nameZh": "新鮮雞蛋 AA級 - 大裝 8隻 424克",
+     "pack": 8,
+     "prices": {
+      "JASONS": 2600,
+      "PARKNSHOP": 2290,
+      "WELLCOME": 2600
+     }
+    }
+   ]
+  },
+  "tomato": {
+   "name": "Tomatoes",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000001848",
+     "brand": "Tomatoes",
+     "name": "Pack 1 pound (55421)",
+     "nameZh": "包裝 1磅 (55421)",
+     "pack": 454,
+     "prices": {
+      "PARKNSHOP": 990
+     }
+    }
+   ]
+  },
+  "tofu": {
+   "name": "Firm tofu",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000000930",
+     "brand": "Pak Fook",
+     "name": "Hard Beancurd 340g",
+     "nameZh": "硬豆腐 340克",
+     "pack": 340,
+     "prices": {
+      "AEON": 790,
+      "JASONS": 1000,
+      "PARKNSHOP": 950,
+      "WELLCOME": 1000
+     }
+    },
+    {
+     "code": "P000003124",
+     "brand": "Vitasoy San Sui",
+     "name": "Organic Soybean Hard Tofu 300g",
+     "nameZh": "有機黃豆硬豆腐 300克",
+     "pack": 300,
+     "prices": {
+      "JASONS": 1300,
+      "PARKNSHOP": 1000,
+      "WELLCOME": 1150
+     }
+    }
+   ]
+  },
+  "instant_noodles": {
+   "name": "Instant noodles",
+   "unit": "pack",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000000390",
+     "brand": "Doll",
+     "name": "Instant Noodle - Sesame Oil Flavour 90g x 5",
+     "nameZh": "公仔麵 - 麻油味 90克 x 5",
+     "pack": 5,
+     "prices": {
+      "JASONS": 1850,
+      "PARKNSHOP": 1800,
+      "WELLCOME": 1800
+     }
+    },
+    {
+     "code": "P000000300",
+     "brand": "Doll",
+     "name": "Instant Noodle - Chicken 92g x 5",
+     "nameZh": "公仔麵 - 雞蓉味 92克 x 5",
+     "pack": 5,
+     "prices": {
+      "PARKNSHOP": 1800,
+      "WELLCOME": 1800
+     }
+    }
+   ]
+  },
+  "garlic": {
+   "name": "Garlic",
+   "unit": "bulb",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000002996",
+     "brand": "Garlics",
+     "name": "Pack 3 pcs (49718)",
+     "nameZh": "包裝 3個 (49718)",
+     "pack": 3,
+     "prices": {
+      "PARKNSHOP": 390
+     }
+    },
+    {
+     "code": "P000002997",
+     "brand": "Garlics",
+     "name": "Pack 3 pcs (529909)",
+     "nameZh": "包裝 3個 (529909)",
+     "pack": 3,
+     "prices": {
+      "WELLCOME": 590
+     }
+    }
+   ]
+  },
+  "baby_cabbage": {
+   "name": "Baby cabbage",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000001812",
+     "brand": "Baby Cabbage",
+     "name": "Pack 450g (55353)",
+     "nameZh": "袋裝 450克 (55353)",
+     "pack": 450,
+     "prices": {
+      "PARKNSHOP": 990
+     }
+    }
+   ]
+  },
+  "broccoli": {
+   "name": "Broccoli",
+   "unit": "head",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000001821",
+     "brand": "Broccoli",
+     "name": "(each pc) (45554)",
+     "nameZh": "(每個) (45554)",
+     "pack": 1,
+     "prices": {
+      "PARKNSHOP": 690
+     }
+    },
+    {
+     "code": "P000005077",
+     "brand": "Broccoli",
+     "name": "(each pc) (101378087)",
+     "nameZh": "(每個) (101378087)",
+     "pack": 1,
+     "prices": {
+      "JASONS": 890,
+      "WELLCOME": 890
+     }
+    }
+   ]
+  },
+  "carrot": {
+   "name": "Carrots",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000001828",
+     "brand": "Carrots",
+     "name": "Pack 1kg (05279)",
+     "nameZh": "袋裝 1公斤 (05279)",
+     "pack": 1000,
+     "prices": {
+      "PARKNSHOP": 1090
+     }
+    }
+   ]
+  },
+  "potato": {
+   "name": "Potatoes",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000001827",
+     "brand": "Baking Potatoes (US)",
+     "name": "Pack 2 pounds (55510)",
+     "nameZh": "袋裝 2磅 (55510)",
+     "pack": 907,
+     "prices": {
+      "PARKNSHOP": 2790
+     }
+    }
+   ]
+  },
+  "mixed_veg": {
+   "name": "Frozen mixed vegetables",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000004410",
+     "brand": "Meadows",
+     "name": "MIXED VEGETABLES 500 GM",
+     "nameZh": "急凍雜菜 500克",
+     "pack": 500,
+     "prices": {
+      "JASONS": 2200,
+      "WELLCOME": 2200
+     }
+    },
+    {
+     "code": "P000004158",
+     "brand": "Select",
+     "name": "MIXED VEGETABLE 500G",
+     "nameZh": "雜菜粒 500克",
+     "pack": 500,
+     "prices": {
+      "PARKNSHOP": 2300
+     }
+    }
+   ]
+  },
+  "shrimp": {
+   "name": "Frozen shrimp meat",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000005109",
+     "brand": "Sunrise Bay",
+     "name": "Frozen Peeled Raw Shrimp (bap) 170g",
+     "nameZh": "急凍南美白蝦仁 (bap) 170克",
+     "pack": 170,
+     "prices": {
+      "WELLCOME": 1800
+     }
+    },
+    {
+     "code": "P000005488",
+     "brand": "Guolian",
+     "name": "Frz Whiteleg Shrimp Meat 180g (frozen -18°c)",
+     "nameZh": "急凍南美白對蝦肉180克 (急凍 -18°c)",
+     "pack": 180,
+     "prices": {
+      "PARKNSHOP": 2690
+     }
+    }
+   ]
+  },
+  "beef": {
+   "name": "Frozen sliced beef",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000004140",
+     "brand": "Select",
+     "name": "US GRAIN FED HOT POT BEEF 200G",
+     "nameZh": "美國穀飼肥牛 200克",
+     "pack": 200,
+     "prices": {
+      "PARKNSHOP": 4990
+     }
+    }
+   ]
+  },
+  "chicken_wings": {
+   "name": "Frozen chicken wings",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000004100",
+     "brand": "Select",
+     "name": "SELECT BRAZILIAN MID JOINT WING 2LB PKT (10980)",
+     "nameZh": "巴西雞中翼 1包 2磅 (907克) (10980)",
+     "pack": 907,
+     "prices": {
+      "PARKNSHOP": 4990
+     }
+    }
+   ]
+  },
+  "luncheon_meat": {
+   "name": "Luncheon meat",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "p000000669",
+     "brand": "Greatwall",
+     "name": "Chopped Pork and Ham 198g",
+     "nameZh": "火腿豬肉 198克",
+     "pack": 198,
+     "prices": {
+      "DCHFOOD": 1600,
+      "JASONS": 1750,
+      "PARKNSHOP": 1700,
+      "WELLCOME": 1700
+     }
+    },
+    {
+     "code": "P000005238",
+     "brand": "Golden Dragon",
+     "name": "Choppen Pork & Ham 198GM",
+     "nameZh": "火腿餐肉 198克",
+     "pack": 198,
+     "prices": {
+      "PARKNSHOP": 1500,
+      "WELLCOME": 1800
+     }
+    }
+   ]
+  },
+  "fish_balls": {
+   "name": "Fish balls",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000000532",
+     "brand": "Four Seas",
+     "name": "Fish Ball 170g",
+     "nameZh": "魚蛋 170克",
+     "pack": 170,
+     "prices": {
+      "AEON": 1590,
+      "JASONS": 2000,
+      "PARKNSHOP": 2000,
+      "WELLCOME": 2000
+     }
+    }
+   ]
+  },
+  "sausage": {
+   "name": "Chicken sausages",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000000132",
+     "brand": "Valley Chef",
+     "name": "Chicken Franks 340.2g",
+     "nameZh": "高級雞肉腸 340.2克",
+     "pack": 340,
+     "prices": {
+      "AEON": 2590,
+      "JASONS": 3300,
+      "PARKNSHOP": 2900,
+      "WELLCOME": 3300
+     }
+    }
+   ]
+  },
+  "tuna": {
+   "name": "Canned tuna",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000003824",
+     "brand": "Meadows",
+     "name": "Tuna Chunk in Water 95 GM",
+     "nameZh": "礦泉水浸吞拿魚塊 95克",
+     "pack": 95,
+     "prices": {
+      "JASONS": 1350,
+      "WELLCOME": 1290
+     }
+    },
+    {
+     "code": "P000003955",
+     "brand": "Select",
+     "name": "TUNA CHUNKS IN BRINE 95G",
+     "nameZh": "鹽水浸吞拿魚 95克",
+     "pack": 95,
+     "prices": {
+      "PARKNSHOP": 1300
+     }
+    }
+   ]
+  },
+  "bread": {
+   "name": "Sandwich bread",
+   "unit": "slice",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000000229",
+     "brand": "Garden",
+     "name": "Crustless Sandwich Bread 6 slices",
+     "nameZh": "切皮三文治方包 6片",
+     "pack": 6,
+     "prices": {
+      "AEON": 1150,
+      "JASONS": 1150,
+      "PARKNSHOP": 1150,
+      "WELLCOME": 1150
+     }
+    },
+    {
+     "code": "P000003700",
+     "brand": "Meadows",
+     "name": "Sandwich Bread 8 slices",
+     "nameZh": "三文治方包 8片",
+     "pack": 8,
+     "prices": {
+      "JASONS": 1190,
+      "WELLCOME": 1190
+     }
+    }
+   ]
+  },
+  "spaghetti": {
+   "name": "Spaghetti",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000004017",
+     "brand": "Select",
+     "name": "SPAGHETTI 500G",
+     "nameZh": "意大利粉 500克",
+     "pack": 500,
+     "prices": {
+      "PARKNSHOP": 1490
+     }
+    },
+    {
+     "code": "P000002764",
+     "brand": "San Remo",
+     "name": "Spaghetti (n.5) 500g",
+     "nameZh": "意大利粉 Spaghetti (n.5) 500克",
+     "pack": 500,
+     "prices": {
+      "AEON": 1150,
+      "PARKNSHOP": 1950,
+      "WELLCOME": 2600
+     }
+    }
+   ]
+  },
+  "pasta_sauce": {
+   "name": "Tomato pasta sauce",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000003897",
+     "brand": "Meadows",
+     "name": "Napoletana Pasta SCE 340g",
+     "nameZh": "傳統意粉醬 340克",
+     "pack": 340,
+     "prices": {
+      "JASONS": 2400,
+      "WELLCOME": 2400
+     }
+    },
+    {
+     "code": "P000003896",
+     "brand": "Meadows",
+     "name": "Mushroom Pasta Sauce 340g",
+     "nameZh": "蕃茄蘑菇意粉醬 340克",
+     "pack": 340,
+     "prices": {
+      "JASONS": 2400,
+      "WELLCOME": 2400
+     }
+    }
+   ]
+  },
+  "udon": {
+   "name": "Udon noodles",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000001324",
+     "brand": "Sau Tao",
+     "name": "Japanese Udon 200g x 4",
+     "nameZh": "烏冬 (4人前) 200克 x 4",
+     "pack": 800,
+     "prices": {
+      "JASONS": 1000,
+      "PARKNSHOP": 1000,
+      "WELLCOME": 850
+     }
+    }
+   ]
+  },
+  "noodles": {
+   "name": "Shanghai noodles",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000000047",
+     "brand": "Sau Tao",
+     "name": "Shanghai Noodle 340g",
+     "nameZh": "幼滑上海麵 340克",
+     "pack": 340,
+     "prices": {
+      "AEON": 490,
+      "JASONS": 990,
+      "PARKNSHOP": 1000,
+      "WELLCOME": 950
+     }
+    },
+    {
+     "code": "P000004012",
+     "brand": "Select",
+     "name": "SHANGHAI NOODLES 340G",
+     "nameZh": "上海麵 340克",
+     "pack": 340,
+     "prices": {
+      "PARKNSHOP": 850
+     }
+    }
+   ]
+  },
+  "rice_vermicelli": {
+   "name": "Rice vermicelli",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000003315",
+     "brand": "Pearl River Bridge",
+     "name": "Dongguan Rice Stick 454g",
+     "nameZh": "東莞米粉 454克",
+     "pack": 454,
+     "prices": {
+      "JASONS": 1200,
+      "PARKNSHOP": 1200,
+      "WELLCOME": 1100
+     }
+    }
+   ]
+  },
+  "oats": {
+   "name": "Oats",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000005285",
+     "brand": "Meadows",
+     "name": "Quick Cook Oatmeal 200g",
+     "nameZh": "快熟燕麥片 200克",
+     "pack": 200,
+     "prices": {
+      "WELLCOME": 750
+     }
+    },
+    {
+     "code": "P000002709",
+     "brand": "Quaker",
+     "name": "Whole Rolled Oats 200g",
+     "nameZh": "原片大燕麥 200克",
+     "pack": 200,
+     "prices": {
+      "AEON": 890,
+      "PARKNSHOP": 900
+     }
+    }
+   ]
+  },
+  "milk": {
+   "name": "Milk",
+   "unit": "ml",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000003054",
+     "brand": "Black & White",
+     "name": "UHT Pure Milk 1L",
+     "nameZh": "全脂牛奶 1公升",
+     "pack": 1000,
+     "prices": {
+      "JASONS": 2400,
+      "PARKNSHOP": 2300,
+      "WELLCOME": 2300
+     }
+    }
+   ]
+  },
+  "banana": {
+   "name": "Bananas",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000001631",
+     "brand": "Del Monte",
+     "name": "Philippine Bananas (per pound) (75536)",
+     "nameZh": "菲律賓香蕉 (每磅) (75536)",
+     "pack": 454,
+     "prices": {
+      "PARKNSHOP": 1690
+     }
+    }
+   ]
+  },
+  "chicken_broth": {
+   "name": "Chicken broth",
+   "unit": "ml",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000003496",
+     "brand": "Swanson",
+     "name": "Clear Chicken Broth 500mL",
+     "nameZh": "清雞湯 500毫升",
+     "pack": 500,
+     "prices": {
+      "DCHFOOD": 1400,
+      "JASONS": 1250,
+      "PARKNSHOP": 1300,
+      "WELLCOME": 1200
+     }
+    },
+    {
+     "code": "P000001735",
+     "brand": "Swanson",
+     "name": "Clear Chicken Broth 250mL",
+     "nameZh": "清雞湯 250毫升",
+     "pack": 250,
+     "prices": {
+      "AEON": 790,
+      "PARKNSHOP": 800
+     }
+    }
+   ]
+  },
+  "curry_sauce": {
+   "name": "Curry sauce",
+   "unit": "g",
+   "pantry": false,
+   "products": [
+    {
+     "code": "P000000710",
+     "brand": "Lee Kum Kee",
+     "name": "Curry Sauce 235g",
+     "nameZh": "咖喱醬 235克",
+     "pack": 235,
+     "prices": {
+      "AEON": 1790,
+      "JASONS": 1900,
+      "PARKNSHOP": 1800,
+      "WELLCOME": 1800
+     }
+    }
+   ]
+  },
+  "cooking_oil": {
+   "name": "Cooking oil",
+   "unit": "ml",
+   "pantry": true,
+   "products": [
+    {
+     "code": "P000005224",
+     "brand": "Bontaste",
+     "name": "Canola Oil 1L",
+     "nameZh": "芥花籽油 1公升",
+     "pack": 1000,
+     "prices": {
+      "DCHFOOD": 3990,
+      "JASONS": 3200,
+      "PARKNSHOP": 3000,
+      "WELLCOME": 3000
+     }
+    }
+   ]
+  },
+  "soy_sauce": {
+   "name": "Light soy sauce",
+   "unit": "ml",
+   "pantry": true,
+   "products": [
+    {
+     "code": "P000000664",
+     "brand": "Lee Kum Kee",
+     "name": "Soy Sauce 500mL",
+     "nameZh": "鮮味生抽 500毫升",
+     "pack": 500,
+     "prices": {
+      "AEON": 990,
+      "DCHFOOD": 1000,
+      "JASONS": 1100,
+      "PARKNSHOP": 1000,
+      "WATSONS": 890,
+      "WELLCOME": 1000
+     }
+    }
+   ]
+  },
+  "oyster_sauce": {
+   "name": "Oyster sauce",
+   "unit": "g",
+   "pantry": true,
+   "products": [
+    {
+     "code": "P000001715",
+     "brand": "Amoy",
+     "name": "Oyster Sauce 555g",
+     "nameZh": "蠔油 555克",
+     "pack": 555,
+     "prices": {
+      "PARKNSHOP": 1600
+     }
+    },
+    {
+     "code": "P000002475",
+     "brand": "Tung Chun",
+     "name": "Fat Choy Oyster Flavored Sauce 735g",
+     "nameZh": "發財蠔油 735克",
+     "pack": 735,
+     "prices": {
+      "PARKNSHOP": 1700,
+      "WELLCOME": 1650
+     }
+    }
+   ]
+  },
+  "sesame_oil": {
+   "name": "Sesame oil",
+   "unit": "ml",
+   "pantry": true,
+   "products": [
+    {
+     "code": "P000004943",
+     "brand": "Tung Chun",
+     "name": "Sesame Oil 150mL",
+     "nameZh": "小磨蔴油 150毫升",
+     "pack": 150,
+     "prices": {
+      "AEON": 1800,
+      "JASONS": 1900,
+      "PARKNSHOP": 1800,
+      "WELLCOME": 1800
+     }
+    }
+   ]
+  },
+  "chili_bean_sauce": {
+   "name": "Chili bean sauce",
+   "unit": "g",
+   "pantry": true,
+   "products": [
+    {
+     "code": "P000000715",
+     "brand": "Lee Kum Kee",
+     "name": "Chili Bean Sauce 240g",
+     "nameZh": "辣豆瓣醬 240克",
+     "pack": 240,
+     "prices": {
+      "AEON": 1490,
+      "JASONS": 1800,
+      "PARKNSHOP": 1500,
+      "WELLCOME": 1650
+     }
+    }
+   ]
+  },
+  "mayonnaise": {
+   "name": "Mayonnaise",
+   "unit": "g",
+   "pantry": true,
+   "products": [
+    {
+     "code": "P000003158",
+     "brand": "Kewpie",
+     "name": "Mayonnaise 300g",
+     "nameZh": "沙律醬 300克",
+     "pack": 300,
+     "prices": {
+      "AEON": 2290,
+      "DCHFOOD": 2300,
+      "JASONS": 2200,
+      "PARKNSHOP": 3000,
+      "WELLCOME": 2200
+     }
+    }
+   ]
+  },
+  "salt": {
+   "name": "Salt",
+   "unit": "g",
+   "pantry": true,
+   "products": [
+    {
+     "code": "P000003685",
+     "brand": "Meadows",
+     "name": "Table Salt 454g",
+     "nameZh": "餐桌鹽 454克",
+     "pack": 454,
+     "prices": {
+      "JASONS": 580,
+      "WELLCOME": 580
+     }
+    },
+    {
+     "code": "P000004035",
+     "brand": "Select",
+     "name": "TABLE SALT 454G",
+     "nameZh": "餐桌鹽 454克",
+     "pack": 454,
+     "prices": {
+      "PARKNSHOP": 590
+     }
+    }
+   ]
+  },
+  "sugar": {
+   "name": "Sugar",
+   "unit": "g",
+   "pantry": true,
+   "products": [
+    {
+     "code": "P000003687",
+     "brand": "Meadows",
+     "name": "White Granulated Sugar 400g",
+     "nameZh": "白砂糖 400克",
+     "pack": 400,
+     "prices": {
+      "JASONS": 650,
+      "WELLCOME": 650
+     }
+    },
+    {
+     "code": "P000000814",
+     "brand": "Taikoo",
+     "name": "Granulated Sugar 400g",
+     "nameZh": "純正砂糖 400克",
+     "pack": 400,
+     "prices": {
+      "AEON": 800,
+      "JASONS": 800,
+      "PARKNSHOP": 900,
+      "WELLCOME": 800
+     }
+    }
+   ]
+  },
+  "corn_starch": {
+   "name": "Corn starch",
+   "unit": "g",
+   "pantry": true,
+   "products": [
+    {
+     "code": "P000001621",
+     "brand": "Knorr Kingsford's",
+     "name": "Corn Starch 227g",
+     "nameZh": "鷹粟粉 227克",
+     "pack": 227,
+     "prices": {
+      "AEON": 790,
+      "JASONS": 700,
+      "PARKNSHOP": 800,
+      "WELLCOME": 700
+     }
+    }
+   ]
+  },
+  "spring_onion": {
+   "name": "Spring onion",
+   "unit": "g",
+   "pantry": false,
+   "products": []
+  },
+  "ginger": {
+   "name": "Ginger",
+   "unit": "g",
+   "pantry": false,
+   "products": []
+  }
+ }
+}

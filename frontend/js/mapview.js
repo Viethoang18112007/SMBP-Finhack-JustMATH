@@ -133,7 +133,11 @@ export function mountMap() {
     const marker = window.L.circleMarker([place.lat, place.lng], pinStyle(place, place.id === state.selectedId))
       .bindPopup(popup(place))
       .addTo(map);
-    marker.on("click", () => selectPlace(place.id));
+    marker.on("click", () => {
+      selectPlace(place.id);
+      // Groceries mode: a tapped store is added to the comparison (screens/groceries.js).
+      if (state.mapKind === "grocery") document.dispatchEvent(new CustomEvent("ssust:pick-store", { detail: place.id }));
+    });
     markers.set(place.id, marker);
   });
   const selected = state.selectedId && placeById(state.selectedId);

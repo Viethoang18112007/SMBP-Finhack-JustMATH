@@ -8,11 +8,12 @@ and keeps its own database file. Errors the user can fix raise ServiceError.
 """
 
 import json
+import math
 import re
 import uuid
 from datetime import datetime, timezone
 
-from . import assistant, backup, cooked, fit, money, places, prices, projection, ranges, receipt, rewards
+from . import assistant, backup, cooked, fit, groceries, money, places, prices, projection, ranges, receipt, rewards
 from .dates import FixedClock, monday_of, week_dates
 from .store import INBOX_SOURCES, REQUEST_ID, WALLET_SOURCE, merchant_key
 from .validate import MAX_CENTS, clean_note, parse_amount
@@ -408,6 +409,12 @@ class Service:
         mode = self.mode()
         state = self.get_state()
         data = places.places_for(kind, radius_km, mode == "live", fetcher, state["campus"])
+        if kind == places.GROCERY_KIND:
+            names = groceries.load_prices()["chains"]
+            data = dict(data)
+            data["places"] = [{**p, "chain": groceries.chain_for(p["name"]),
+                               "chainName": names.get(groceries.chain_for(p["name"]))} for p in data["places"]]
+            return data
         if kind != "food":
             return data
         remaining = state["view"]["todayRemaining"]
@@ -420,6 +427,75 @@ class Service:
                           "bands": fit.bands_payload(), "verifiedRecords": len(self._verified),
                           "rangeRecords": len(self._ranges), "chainRecords": len(self._chains)}
         return data
+
+    # Groceries: what to cook, what to buy, and the trip (the Map's Groceries mode)
+    def _main_left(self):
+        view = self.get_state()["view"]
+        return view["fundsNow"]["main"] if view.get("ready") else None
+
+    def groceries_catalogue(self):
+        """The recipes, where the prices and fares come from, and Main meals left this week."""
+        price_data = groceries.load_prices()
+        fares = groceries.load_fares()
+        meta = ("source", "sourceUrl", "checkedOn", "note", "needsCheck")
+        return {
+            "recipes": groceries.load_recipes(),
+            "prices": {key: price_data.get(key) for key in ("source", "sourceUrl", "checkedOn", "note")},
+            "fares": {mode: {key: fares[mode].get(key) for key in meta} for mode in ("taxi", "mtr")},
+            "budget": {"main": self._main_left()},
+        }
+
+    def groceries_plan(self, recipe_id, servings, store_ids, radius, origin, mode, fare, round_trip,
+                       include_pantry, fetcher):
+        """The shopping list for a recipe, at up to two stores picked on the map, with the trip to
+        each from `origin` (or the campus), the total, the fit against Main meals and the verdict."""
+        recipe = next((r for r in groceries.load_recipes() if r["id"] == recipe_id), None)
+        if recipe is None:
+            raise ServiceError("Unknown recipe.")
+        if type(servings) is not int or not 1 <= servings <= groceries.MAX_SERVINGS:
+            raise ServiceError(f"Servings: a whole number from 1 to {groceries.MAX_SERVINGS}.")
+        if mode not in groceries.MODES or fare not in groceries.FARE_TYPES:
+            raise ServiceError("Pick walk, MTR or taxi, and a student or adult fare.")
+        if not isinstance(round_trip, bool) or not isinstance(include_pantry, bool):
+            raise ServiceError("Send roundTrip and includePantry as true or false.")
+        if radius not in places.RADIUS_KM:
+            raise ServiceError("Unknown map filter.")
+        if (not isinstance(store_ids, list) or len(store_ids) > 2
+                or not all(isinstance(s, str) for s in store_ids) or len(set(store_ids)) != len(store_ids)):
+            raise ServiceError("Pick up to two different stores.")
+        state = self.get_state()
+        start = places.CAMPUSES[state["campus"]]
+        if origin is not None:
+            if not isinstance(origin, dict) or set(origin) != {"lat", "lng"} or any(
+                    type(origin[k]) not in (int, float) or not math.isfinite(origin[k]) for k in ("lat", "lng")):
+                raise ServiceError("Send the start point as {lat, lng}.")
+            # Hong Kong only: the fares are Hong Kong fares.
+            if not (22.1 <= origin["lat"] <= 22.6 and 113.8 <= origin["lng"] <= 114.5):
+                raise ServiceError("The start point must be in Hong Kong.")
+            start = {"lat": origin["lat"], "lng": origin["lng"]}
+        found = {p["id"]: p for p in self.places(places.GROCERY_KIND, float(radius), fetcher)["places"]}
+        price_data = groceries.load_prices()
+        fares = groceries.load_fares()
+        stores = []
+        for store_id in store_ids:
+            store = found.get(store_id)
+            if store is None:
+                raise ServiceError("That store is not on the map any more. Reload the map.")
+            distance = places.haversine_km(start["lat"], start["lng"], store["lat"], store["lng"])
+            bask = groceries.basket(recipe, servings, price_data, store["chain"], include_pantry)
+            trip = groceries.trip(distance, mode, fares, fare, round_trip)
+            stores.append({"id": store["id"], "name": store["name"], "chain": store["chain"],
+                           "chainName": store["chainName"], "detail": store["detail"],
+                           "distanceKm": round(distance, 2), "basket": bask, "trip": trip,
+                           "totalCents": bask["totalCents"] + trip["cents"]})
+        typical = groceries.basket(recipe, servings, price_data, None, include_pantry)
+        main_left = self._main_left()
+        cheapest = min((s["basket"]["totalCents"] for s in stores), default=typical["totalCents"])
+        verdict = groceries.compare([{"id": s["id"], "name": s["name"], "groceriesCents": s["basket"]["totalCents"],
+                                      "tripCents": s["trip"]["cents"]} for s in stores])
+        return {"recipe": recipe, "servings": servings, "basket": typical, "stores": stores, "compare": verdict,
+                "fit": groceries.budget_fit(cheapest, main_left), "budget": {"main": main_left},
+                "prices": {key: price_data.get(key) for key in ("source", "sourceUrl", "checkedOn", "note")}}
 
     def parse_entry(self, text):
         """A quick entry ("$50 KFC dinner") read into amount, fund and note. Saves nothing."""

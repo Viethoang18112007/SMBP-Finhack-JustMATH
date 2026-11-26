@@ -12,6 +12,7 @@ import { defaultChoice } from "./sheet.js";
 import { applyState, state } from "./store.js";
 import { confirmBody, reviewAmountError, typoAnswered } from "./tap.js";
 import { budgetMismatch } from "./budget.js";
+import { openGroceries } from "./screens/groceries.js";
 
 // What the tanks animate after a save: which fund paid, and which others gave to it.
 function flowOf(payment) {
@@ -549,6 +550,7 @@ export async function loadMap() {
   }
   state.mapLoading = false;
   if (state.screen === "map") render();
+  if (state.screen === "map" && state.mapKind === "grocery" && state.map) openGroceries();
 }
 
 // A receipt read in the camera screen: Add payment opens pre-filled. Never saves: the student

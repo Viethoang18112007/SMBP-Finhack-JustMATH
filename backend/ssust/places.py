@@ -30,7 +30,11 @@ CAMPUSES = {
 DEFAULT_CAMPUS = "hkust"
 CENTER = CAMPUSES[DEFAULT_CAMPUS]
 RADIUS_KM = ("0.5", "1", "3", "5", "10")
-KINDS = ("food", "shop")
+KINDS = ("food", "shop")  # the kinds kept in the offline snapshot
+# Groceries (the Map's Groceries mode): live from OpenStreetMap, offline from the snapshot's shops.
+GROCERY_KIND = "grocery"
+MAP_KINDS = KINDS + (GROCERY_KIND,)
+GROCERY_SHOPS = frozenset({"supermarket", "convenience", "greengrocer", "butcher", "grocery", "deli", "seafood"})
 EARTH_KM = 6371.0
 OVERPASS_URLS = (
     "https://overpass.openstreetmap.fr/api/interpreter",
@@ -46,6 +50,9 @@ SNAPSHOT_TAGS = ("name", "name:en", "amenity", "shop", "cuisine", "price_range",
 FILTERS = {
     "food": '["amenity"~"^(restaurant|cafe|fast_food|food_court)$"]',
     "shop": '["shop"~"^(supermarket|convenience|mall|department_store|marketplace|clothes|general)$"]',
+    # Several filters: an element matching any of them is kept (wet markets are amenity=marketplace).
+    "grocery": ('["shop"~"^(supermarket|convenience|greengrocer|butcher|grocery|deli|seafood)$"]',
+                '["amenity"="marketplace"]'),
 }
 
 _cache = {}
@@ -116,7 +123,12 @@ def select_places(elements, kind, radius_km, center=CENTER):
         distance = haversine_km(center["lat"], center["lng"], lat, lng)
         if distance > radius_km + 1e-9:
             continue
-        detail = tags.get("cuisine") if kind == "food" else tags.get("shop")
+        if kind == "food":
+            detail = tags.get("cuisine")
+        elif kind == GROCERY_KIND:
+            detail = tags.get("shop") or ("marketplace" if tags.get("amenity") == "marketplace" else "")
+        else:
+            detail = tags.get("shop")
         band, source = band_for(tags)
         found.append({
             "id": f"{element.get('type', 'node')}/{element.get('id', name)}",
@@ -137,12 +149,13 @@ def fetch_elements(kind, radius_km, center=CENTER):
     """Raw Overpass elements of `kind` within `radius_km` of `center` (needs the internet)."""
     meters = int(radius_km * 1000)
     lat, lng = center["lat"], center["lng"]
+    filters = FILTERS[kind] if isinstance(FILTERS[kind], tuple) else (FILTERS[kind],)
+    parts = "".join(f"  node{f}(around:{meters},{lat},{lng});\n  way{f}(around:{meters},{lat},{lng});\n"
+                    for f in filters)
     query = f"""
 [out:json][timeout:25];
 (
-  node{FILTERS[kind]}(around:{meters},{lat},{lng});
-  way{FILTERS[kind]}(around:{meters},{lat},{lng});
-);
+{parts});
 out center;
 """
     payload = None
@@ -247,7 +260,13 @@ def snapshot_places(kind, radius_km, campus=DEFAULT_CAMPUS):
     """Places around `campus` from the offline snapshot, in the same shape as fetch_places."""
     data = load_snapshot()
     center = CAMPUSES[campus]
-    places, total = select_places(data["campuses"][campus]["kinds"][kind], kind, radius_km, center)
+    if kind == GROCERY_KIND:
+        # Offline groceries: the snapshot's supermarkets and convenience stores (no wet markets).
+        elements = [e for e in data["campuses"][campus]["kinds"]["shop"]
+                    if (e.get("tags") or {}).get("shop") in GROCERY_SHOPS]
+    else:
+        elements = data["campuses"][campus]["kinds"][kind]
+    places, total = select_places(elements, kind, radius_km, center)
     return {
         "center": center,
         "kind": kind,

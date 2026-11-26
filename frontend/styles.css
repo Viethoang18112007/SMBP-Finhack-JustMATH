@@ -1337,3 +1337,32 @@ html.native #home-btn { display: none; }
 .fb-check { display: flex; align-items: center; gap: 8px; margin: 8px 0 12px; font-size: 13px; color: var(--ink-2); min-height: 44px; }
 .fb-check input { width: 18px; height: 18px; }
 .fb-thanks { margin: 4px 0 12px; font-weight: 650; color: var(--green, #1f7a4d); }
+
+/* Map: Eat out / Groceries, and the Groceries panel (recipe, shopping list, trip, verdict). */
+.map-mode { margin-bottom: var(--s2); }
+.groceries { display: flex; flex-direction: column; gap: var(--s2); }
+.groc-form { display: flex; flex-direction: column; gap: var(--s2); }
+.groc-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.groc-row.wrap { justify-content: flex-start; flex-wrap: wrap; }
+.stepper { display: inline-flex; align-items: center; gap: 10px; }
+.stepper .ghost.small { width: 44px; padding: 0; font-size: 20px; }
+.groc-picked { display: flex; flex-wrap: wrap; gap: 6px; }
+.groc-picked .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: var(--r-pill); background: var(--blue-bg); font-size: 13px; font-weight: 650; }
+.chip-x { width: 32px; height: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
+.groc-store { border: 1px solid var(--line); border-radius: var(--r-card); padding: var(--s3); margin-top: var(--s2); background: var(--card); }
+.groc-store.best { border-color: var(--ok, #1a7f4b); box-shadow: inset 0 0 0 1px var(--ok, #1a7f4b); }
+.groc-store-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--s2); }
+.groc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.groc-table th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 700; padding: 4px 4px 4px 0; }
+.groc-table td { padding: 6px 4px 6px 0; border-top: 1px solid var(--line); vertical-align: top; }
+.groc-table td.num, .groc-table th:nth-child(2), .groc-table th:nth-child(4) { text-align: right; white-space: nowrap; }
+.groc-table tr.pantry td, .groc-table tr.unknown td { color: var(--muted); }
+.groc-note { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 4px 0 0; }
+.groc-total, .groc-trip { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2); margin-top: var(--s2); font-size: 14px; }
+.groc-total.grand { padding-top: var(--s2); border-top: 2px solid var(--line); font-weight: 700; font-size: 15px; }
+.groc-fit { margin: 0; padding: 10px 12px; border-radius: var(--r-ctl); font-weight: 650; font-size: 14px; }
+.groc-fit.fits { background: var(--green-bg); color: var(--green); }
+.groc-fit.over { background: var(--red-bg); color: var(--red); }
+.groc-verdict { margin: 0; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--blue-bg); font-size: 14px; line-height: 1.45; }
+.place.picked { box-shadow: inset 0 0 0 2px var(--blue); }
+.pick-mark { font-size: 11px; font-weight: 700; color: var(--blue); }

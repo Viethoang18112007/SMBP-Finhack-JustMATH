@@ -1,0 +1,34 @@
+{
+ "checkedOn": "2026-11-26",
+ "roadFactorPct": 130,
+ "roadNote": "Distances are straight lines (haversine) times 1.3 for streets. No route planner, no paid API.",
+ "walk": {
+  "kmPerHour": 5,
+  "note": "Free. Minutes at 5 km/h on the street distance."
+ },
+ "taxi": {
+  "source": "Transport Department, Taxi fare of Hong Kong, urban (red) taxi, effective 14 July 2024",
+  "sourceUrl": "https://www.td.gov.hk/en/transport_in_hong_kong/public_transport/taxi/taxi_fare_of_hong_kong/index.html",
+  "checkedOn": "2026-11-26",
+  "flagMeters": 2000,
+  "flagCents": 2900,
+  "stepMeters": 200,
+  "stepCents": 210,
+  "thresholdCents": 10250,
+  "afterStepCents": 140,
+  "needsCheck": false,
+  "note": "Official urban taxi meter table on the street distance. Waiting time, tunnels, baggage and booking charges are not included."
+ },
+ "mtr": {
+  "source": "MTR Corporation open data, fares between every pair of stations (mtr_lines_fares.csv, file dated 2 April 2026)",
+  "sourceUrl": "https://opendata.mtr.com.hk/data/mtr_lines_fares.csv",
+  "checkedOn": "2026-11-26",
+  "bands": [
+   {"maxKm": 5, "studentCents": 320, "adultCents": 590},
+   {"maxKm": 10, "studentCents": 460, "adultCents": 920},
+   {"maxKm": null, "studentCents": 650, "adultCents": 1320}
+  ],
+  "needsCheck": true,
+  "note": "Octopus fares. Up to 5 km: the 10th percentile of all station pairs (for example Kowloon Tong to Mong Kok, HK$3.20 student, HK$5.90 adult); up to 10 km: the 25th percentile; longer: the median. Airport and border stations left out. The real fare depends on the two stations; bus fares are not checked."
+ }
+}

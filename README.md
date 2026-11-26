@@ -206,7 +206,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (944 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (975 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 
@@ -425,11 +425,25 @@ All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: 
 | `POST /api/inbox/confirm` | `{"id": 3, "category": "main", "choice"?: ..., "amount"?: "24.50", "typoChecked"?: true}` | Confirm it into a fund through the same logic as `/api/payments` (same `needsConfirm` step). An amount-unknown item needs `amount` (> 0); an amount far above normal first answers `{"needsTypoCheck": true, "typo"}` until it is sent again with `typoChecked: true` |
 | `POST /api/inbox/dismiss` | `{"id": 3}` | Dismiss it; nothing is saved |
 | `POST /api/feedback` | `{"rating"?: 1 to 5, "message"?: "<at most 500 characters>", "screen": "today" \| "map" \| ..., "contextId"?: "recipe:congee", "deviceId"?: "<32 hex>"}` | Send private feedback (a rating, a message, or both). The answer is only `{"ok", "id", "thanks"}`: there is no route that lists feedback for users |
+| `GET /api/groceries` | | The recipes, the sources and dates of the grocery prices and fares, and Main meals left this week |
+| `POST /api/groceries/plan` | `{"recipe": "tomato_egg_rice", "servings": 1 to 10, "stores"?: [up to 2 store ids from /api/places?kind=grocery], "radius": "3", "origin"?: {"lat", "lng"} (in Hong Kong), "mode": "walk" \| "mtr" \| "taxi", "fare": "student" \| "adult", "roundTrip": true, "includePantry": false}` | The shopping list priced at each store (and at typical supermarket prices), the trip to each, groceries + trip, the fit against Main meals and which store is worth going to. Reads only |
 | `GET /api/admin/feedback` | header `Authorization: Bearer <SSUST_ADMIN_TOKEN>` | Team only: every entry, newest first. 404 when the variable is not set, 401 for a wrong or missing token |
 
 The state also carries `fresh` (true when the server holds no budget data for this book: a new phone or a wiped disk), `rewards` (`streak`, `lastWeek`, `medals`, `badges`), `projection`, `insights`, `inbox` (pending items with `suggestedFund`, `suggestedReason` and `typo`) and `connected`. Food places can carry `priceRange` (`min`, `max`, `sourceName`, `sourceUrl`, `checkedOn`, `note`) with the statuses `range_fits`, `range_may`, `range_over`, or `chain` (`chain`, `what`, `lowCents`, `highCents`, `sources`, `checkedOn`, `needsCheck`) with `chain_fits`, `chain_tight`, `chain_over`; `budget` adds `rangeRecords` and `chainRecords`.
 
 Categories are `main`, `snack`, `fixed`, `experience`, `development`. Every other path serves a file from `frontend/`.
+
+## Groceries: what to cook, what to buy, and the trip
+
+The Map tab has two modes: **Eat out** (food places and what fits today) and **Groceries**. Groceries shows supermarkets and convenience stores on the same map (live: OpenStreetMap supermarkets, convenience stores, greengrocers, butchers and wet markets; offline and in Demo: the supermarkets and convenience stores of the bundled snapshot, so it always shows something).
+
+- **What to cook.** 15 simple student meals (`backend/ssust/data/recipes.json`): tomato and egg on rice, congee, an instant noodles upgrade, garlic greens, mapo tofu, fried rice, curry, udon... Each lists its ingredients for one serving; pick 1 to 10 servings.
+- **What it costs.** Prices come only from the Consumer Council's **Online Price Watch** open data (supermarket shelf prices, `backend/ssust/data/grocery_prices.json`, with the source URL and the day it was read). Each ingredient is tied to real products by their Price Watch code, with the pack size read from the product name. Whole packs are what you buy; pantry items (oil, sauces, salt, sugar) last many meals, so they count only with "Buy pantry items too", and the share one meal uses is shown. An ingredient that is not in the Price Watch list (spring onion, ginger) says **price unknown** and is left out of the total, never guessed. A Wellcome, PARKnSHOP, Market Place by Jasons, AEON or DCH Food Mart store uses its own chain's prices; any other store (7-Eleven, fusion, a wet market) shows the typical supermarket price, marked as an estimate. Offers ("2 for ...") are not applied. Refresh the prices with `python tools/make_grocery_prices.py` (needs the internet; it refuses a product whose pack size changed).
+- **Budget.** The total is compared with what is left in **Main meals** this week: fits, or over by how much.
+- **Trip.** Pick up to two stores (tap them in the list or on the map), a start (the campus, or "My location" from the browser), and Walk, MTR or bus, or Taxi, one way or there and back. Distances are straight lines (haversine, offline) times 1.3 for streets. Walking is free. **Taxi** uses the Transport Department's urban taxi meter table (HK$29 for the first 2 km, then HK$2.1 every 200 m up to HK$102.5, then HK$1.4; effective 14 July 2024). **MTR** uses Octopus fares from the MTR fare table (open data): up to 5 km the 10th percentile of all station pairs (HK$3.20 student, HK$5.90 adult, e.g. Kowloon Tong to Mong Kok), up to 10 km the 25th percentile, beyond the median; bus fares are not checked. Every trip is labelled **Estimate** with its source and date (`backend/ssust/data/transport_fares.json`).
+- **Worth going?** For two stores: total = groceries + trip for each, and a plain sentence, for example "Wellcome is HK$12 cheaper in total. Market Place has the cheaper basket (HK$5 less) but its trip costs HK$17 more, so it is not worth the trip."
+
+The rules are pure functions in `backend/ssust/groceries.py` (integer cents, fractions for quantities, tested in `test_groceries.py` and `test_groceries_api.py`).
 
 ## Feedback (private)
 

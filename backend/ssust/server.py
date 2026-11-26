@@ -328,6 +328,8 @@ class Handler(BaseHTTPRequestHandler):
             self.get_places(query)
         elif path == "/api/insights":
             self.send_json(self.service.insights())
+        elif path == "/api/groceries":
+            self.send_json(self.service.groceries_catalogue())
         elif path == "/api/admin/feedback":
             self.get_admin_feedback()
         elif path in ADMIN_FILES:
@@ -355,6 +357,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/assistant/parse": self.post_parse,
             "/api/feedback": self.post_feedback,
             "/api/shortcut/wallet": self.post_wallet,
+            "/api/groceries/plan": self.post_groceries_plan,
         }
         if path == "/api/restore":
             service = self.phone_service()  # before reading the body: no phone, no 1 MB read
@@ -389,6 +392,16 @@ class Handler(BaseHTTPRequestHandler):
         if not file_path.is_relative_to(root) or file_path.suffix not in TYPES or not file_path.is_file():
             return None
         return file_path
+
+    def post_groceries_plan(self, data):
+        allowed = {"recipe", "servings", "stores", "radius", "origin", "mode", "fare", "roundTrip", "includePantry"}
+        if set(data) - allowed:
+            raise BadRequest("Unknown plan fields.")
+        self.send_json(self.service.groceries_plan(
+            _text(data.get("recipe"), "recipe"), data.get("servings"), data.get("stores", []),
+            _text(data.get("radius", "3"), "radius"), data.get("origin"), _text(data.get("mode", "walk"), "mode"),
+            _text(data.get("fare", "student"), "fare"), data.get("roundTrip", True), data.get("includePantry", False),
+            self.server.places_fetcher))
 
     # feedback: anyone may send it, only the team reads it
     def post_feedback(self, data):
@@ -431,7 +444,7 @@ class Handler(BaseHTTPRequestHandler):
     def get_places(self, query):
         kind = query.get("kind", ["food"])[0]
         radius = query.get("radius", ["3"])[0]
-        if kind not in places.KINDS or radius not in places.RADIUS_KM:
+        if kind not in places.MAP_KINDS or radius not in places.RADIUS_KM:
             raise BadRequest("Unknown map filter.")
         self.send_json(self.service.places(kind, float(radius), self.server.places_fetcher))
 
