@@ -8,8 +8,9 @@ Standard library only. Settings come from environment variables:
     SSUST_PUBLIC_HOSTS         more public host names, comma separated (optional)
     SSUST_DATA                 folder for the database files (default: data/ next to this file)
     SSUST_MODE                 "demo" (default, the sample week) or "live"
-    SSUST_FEEDBACK_URL         send feedback on to another server (optional; by default this server
-                               is the central feedback server and keeps it, team-only)
+    SSUST_FEEDBACK_URL         send feedback on (optional): the online feedback database, also read
+    SSUST_FEEDBACK_KEY         from backend/ssust/data/feedback_hub.json. Without either, this server
+                               is the central feedback server and keeps it, team-only
     SSUST_ADMIN_TOKEN          opens the team-only feedback view (/admin/feedback)
 
 It listens on every interface (0.0.0.0) because the platform's proxy forwards
@@ -53,9 +54,12 @@ def config(env):
     if mode not in MODES:
         raise ValueError(f"SSUST_MODE must be demo or live, not {mode!r}")
     data = env.get("SSUST_DATA", "").strip()
-    feedback_url = feedback.hub_url(env.get(feedback.URL_ENV, ""))
+    feedback_url, feedback_key = feedback.default_target(env)
+    if feedback_url == feedback.DEFAULT_HUB:
+        feedback_url = feedback_key = None  # this server is the hosted SSUST server itself: it keeps it
     return {
         "feedbackUrl": feedback_url,
+        "feedbackKey": feedback_key,
         "port": int(text),
         "hosts": tuple(hosts),
         "data": Path(data).resolve() if data else ROOT / "data",
@@ -72,7 +76,8 @@ def main(env=None, on_ready=None):
         return 1
     try:
         server = make_server(settings["data"], LiveClock(), port=settings["port"],
-                             host=BIND, public_hosts=settings["hosts"], feedback_url=settings["feedbackUrl"])
+                             host=BIND, public_hosts=settings["hosts"], feedback_url=settings["feedbackUrl"],
+                             feedback_key=settings["feedbackKey"])
     except OSError as error:
         print(f"Could not start on port {settings['port']}: {error}", file=sys.stderr)
         return 1

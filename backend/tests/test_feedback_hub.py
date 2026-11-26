@@ -139,6 +139,12 @@ class HubServer(ApiTest):
 
 
 class Launchers(unittest.TestCase):
+    def setUp(self):
+        # Without an online database configured (backend/ssust/data/feedback_hub.json may exist).
+        patcher = mock.patch.object(feedback, "HUB_CONFIG", ROOT / "no-such-feedback-hub.json")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_run_py_sends_to_the_hosted_server_by_default(self):
         run = load("run")
         with mock.patch.dict(os.environ, {}, clear=False):

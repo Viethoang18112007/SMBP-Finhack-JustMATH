@@ -40,6 +40,11 @@ TOKEN_ENV = "SSUST_ADMIN_TOKEN"
 # Where a local SSUST sends feedback (run.py; "local" keeps it here). serve.py keeps it by default.
 URL_ENV = "SSUST_FEEDBACK_URL"
 DEFAULT_HUB = "https://ssust-api.onrender.com/api/feedback"
+# A small online database (Supabase) as the receiver: docs/FEEDBACK_DATABASE.md. Its URL and its
+# public insert-only key come from SSUST_FEEDBACK_URL / SSUST_FEEDBACK_KEY, else from this file.
+KEY_ENV = "SSUST_FEEDBACK_KEY"
+HUB_CONFIG = Path(__file__).resolve().parent / "data" / "feedback_hub.json"
+DATABASE_TABLE = "feedback"
 RELAY_TIMEOUT = 8  # seconds per attempt
 MAX_OUTBOX = 500  # feedback waiting for the central server, at most
 MAX_MESSAGE = 500
@@ -206,6 +211,30 @@ def hub_url(value):
     return text
 
 
+def is_database(url):
+    """True for a Supabase project URL (rows go to its REST API), False for an SSUST server."""
+    host = (url or "").split("://", 1)[-1].split("/", 1)[0].lower()
+    return host.endswith(".supabase.co")
+
+
+def default_target(env=None):
+    """(url, key) where feedback goes by default: the environment, else data/feedback_hub.json,
+    else the hosted SSUST server. ("local" in the environment: (None, None), kept here.)"""
+    import os
+    env = os.environ if env is None else env
+    if env.get(URL_ENV, "").strip():
+        url = hub_url(env[URL_ENV])
+        return url, (env.get(KEY_ENV, "").strip() or None) if url else None
+    try:
+        config = json.loads(HUB_CONFIG.read_text(encoding="utf-8"))
+        url = hub_url(config.get("url", ""))
+        if url:
+            return url, (str(config.get("key", "")).strip() or None)
+    except (OSError, ValueError, AttributeError):
+        pass
+    return DEFAULT_HUB, None
+
+
 def payload_of(entry):
     """What goes to the central server: the feedback fields only, nothing about money or the budget."""
     body = {"rating": entry.get("rating"), "message": entry.get("message"), "screen": entry["screen"],
@@ -214,17 +243,23 @@ def payload_of(entry):
     return {key: value for key, value in body.items() if value not in (None, "")}
 
 
-class Relay:
-    """Sends feedback to the central feedback server; keeps it in the outbox until it is there.
+# The receiver refused this entry itself (bad value, duplicate): dropped so it never blocks the rest.
+# Any other answer (401/403/404: a setup problem, 408/429, 5xx, offline) keeps it for later.
+_REFUSED = (400, 409, 422)
+_COLUMNS = {"rating": "rating", "message": "message", "screen": "screen", "contextId": "context_id",
+            "deviceId": "device_id", "appVersion": "app_version"}
 
-    An entry the central server refuses (a 4xx answer) is dropped, so a bad entry never blocks
-    the others; anything else (offline, timeout, 5xx, 408, 429) stays for the next try.
+
+class Relay:
+    """Sends feedback to the central receiver (an SSUST server, or the online database) and keeps
+    it in the outbox until the receiver confirms it. Nothing else ever leaves this computer.
     """
 
-    def __init__(self, path, url, timeout=RELAY_TIMEOUT):
+    def __init__(self, path, url, timeout=RELAY_TIMEOUT, key=None):
         FeedbackBox(path)  # makes the file and both tables
         self.path = Path(path)
         self.url = url
+        self.key = key
         self.timeout = timeout
         self._lock = threading.Lock()
 
@@ -261,15 +296,31 @@ class Relay:
                 with closing(self._connect()) as con, con:
                     con.execute("DELETE FROM outbox WHERE id = ?", (entry_id,))
 
+    def _request(self, payload):
+        headers = {"Content-Type": "application/json", "User-Agent": f"SSUST-feedback/{APP_VERSION}"}
+        if is_database(self.url):
+            # One row in the feedback table; the public key may insert, never read (docs).
+            row = {_COLUMNS[key]: value for key, value in json.loads(payload).items()}
+            headers.update({"apikey": self.key or "", "Prefer": "return=minimal"})
+            if (self.key or "").startswith("eyJ"):
+                headers["Authorization"] = f"Bearer {self.key}"  # an older anon key (a JWT); a publishable key goes in apikey only
+            url = f"{self.url.rstrip('/')}/rest/v1/{DATABASE_TABLE}"
+            return urllib.request.Request(url, data=json.dumps(row).encode("utf-8"), method="POST", headers=headers)
+        return urllib.request.Request(self.url, data=payload.encode("utf-8"), method="POST", headers=headers)
+
     def _post(self, payload):
-        request = urllib.request.Request(self.url, data=payload.encode("utf-8"), method="POST",
-                                         headers={"Content-Type": "application/json",
-                                                  "User-Agent": f"SSUST-feedback/{APP_VERSION}"})
+        request = self._request(payload)
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                response.read()
-            return "sent"
+                body = response.read()
+            if is_database(self.url):
+                return "sent"  # 2xx: the row is stored
+            # An SSUST server must say {"ok": true}: an older server answers 200 but drops the words.
+            try:
+                return "sent" if json.loads(body.decode("utf-8")).get("ok") is True else "later"
+            except (ValueError, AttributeError):
+                return "later"
         except urllib.error.HTTPError as exc:
-            return "refused" if 400 <= exc.code < 500 and exc.code not in (408, 429) else "later"
+            return "refused" if exc.code in _REFUSED else "later"
         except (urllib.error.URLError, OSError, TimeoutError, ValueError):
             return "later"

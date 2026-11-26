@@ -207,7 +207,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (998 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (1009 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 
@@ -451,6 +451,8 @@ The **Feedback** tab takes a 1 to 5 rating and an optional message (at most 500 
 What is stored, in `data/feedback.db` (one file for Live and Demo, never in git): id, time (UTC), rating, message, screen, an optional context id (for example a recipe), the app version, and an optional anonymous id for the browser (32 random hex characters, made in the browser; the student can untick it). No name, e-mail, account or IP address. The server checks every field and its size (`backend/ssust/feedback.py`).
 
 **Where it goes.** Your budget, payments and everything else stay on your computer (`data/`). Feedback is the only thing that leaves it: the local server sends each entry, server to server, to the central SSUST feedback server (`https://ssust-api.onrender.com/api/feedback`, the hosted `serve.py`). Offline, it waits in `data/feedback.db` (an outbox) and goes at the next send or the next start; once delivered, no copy stays on your computer. Only the feedback fields are sent (rating, message, screen, context id, app version, the optional anonymous id): never an amount, a fund or a payment. `python run.py --feedback-url local` (or `SSUST_FEEDBACK_URL=local`) keeps it in your own `data/` instead. The iPhone app already talks to the hosted server, so its feedback lands there directly. The hosted server keeps what it receives (it is the central server unless `SSUST_FEEDBACK_URL` is set there too); set `SSUST_ADMIN_TOKEN` in the Render dashboard (the blueprint asks for it, it is never in the repository).
+
+**One online database for all feedback (recommended).** Set up a free Supabase table in about 5 minutes with [docs/FEEDBACK_DATABASE.md](docs/FEEDBACK_DATABASE.md) and put its URL and public key in `backend/ssust/data/feedback_hub.json`: every computer (and the hosted server, for the iPhone app) then sends feedback straight there, the public key can only add rows, and the team reads them in the Supabase dashboard. A delivery only counts when the receiver confirms it (an older hosted server that answers without `"ok": true` does not count), so nothing is lost while the setup is not finished.
 
 **Render's free disk is wiped on every restart or sleep**, and the feedback on it with it: read or export it regularly from `/admin/feedback`, or give the service a paid persistent disk and point `SSUST_DATA` to it.
 

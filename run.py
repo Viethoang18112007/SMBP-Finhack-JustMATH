@@ -48,14 +48,17 @@ def parse_args(argv):
                         help="folder for the live and demo database files (default: data/ next to run.py)")
     parser.add_argument("--demo", action="store_true", help="start in demo mode on the sample week")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
-    parser.add_argument("--feedback-url", type=_feedback_url, metavar="URL",
-                        default=_feedback_url(os.environ.get(feedback.URL_ENV, feedback.DEFAULT_HUB)),
-                        help="where feedback goes (default: the hosted SSUST server; 'local' keeps it here). "
-                             "Only feedback leaves this computer")
+    url, key = feedback.default_target()
+    parser.add_argument("--feedback-url", type=_feedback_url, metavar="URL", default=url,
+                        help="where feedback goes (default: the online feedback database in "
+                             "backend/ssust/data/feedback_hub.json, else the hosted SSUST server; 'local' keeps it "
+                             "here). Only feedback leaves this computer")
     parser.add_argument("--export-feedback", type=Path, metavar="FILE",
                         help="write every feedback entry in the data folder to FILE (CSV) and exit")
     args = parser.parse_args(argv)
     args.data = args.data.resolve()
+    # The key goes with the default receiver only (never to a URL typed on the command line).
+    args.feedback_key = key if args.feedback_url == url else os.environ.get(feedback.KEY_ENV, "").strip() or None
     return args
 
 
@@ -70,7 +73,8 @@ def main(argv=None, on_ready=None):
         print(f"Wrote {count} feedback {'entry' if count == 1 else 'entries'} to {args.export_feedback.resolve()}")
         return 0
     try:
-        server = make_server(args.data, LiveClock(), port=args.port, feedback_url=args.feedback_url)
+        server = make_server(args.data, LiveClock(), port=args.port, feedback_url=args.feedback_url,
+                             feedback_key=args.feedback_key)
     except OSError as error:
         print(f"Could not start on port {args.port}: {error}\n"
               f"Is SSUST already running? Try another port, e.g. python run.py --port 8766 (or --port 0 for any free port)",

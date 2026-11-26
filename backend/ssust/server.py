@@ -135,7 +135,7 @@ class AppServer(ThreadingHTTPServer):
 
 
 def make_server(data_dir, clock, port=0, places_fetcher=None, quiet=False, host=HOST, public_hosts=(),
-                admin_token=None, feedback_url=None):
+                admin_token=None, feedback_url=None, feedback_key=None):
     """A server on `host`:`port` (0 picks a free port; read it from server_address).
 
     `host` is 127.0.0.1 unless a hosting platform runs it (serve.py). `public_hosts`
@@ -167,7 +167,7 @@ def make_server(data_dir, clock, port=0, places_fetcher=None, quiet=False, host=
     if admin_token is None:
         admin_token = os.environ.get(feedback.TOKEN_ENV, "").strip()
     box = feedback.FeedbackBox(Path(data_dir) / feedback.FEEDBACK_FILE)
-    relay = feedback.Relay(box.path, feedback_url) if feedback_url else None
+    relay = feedback.Relay(box.path, feedback_url, key=feedback_key) if feedback_url else None
     if relay is not None:
         # Feedback left waiting by an earlier run (offline) goes now, without delaying the start.
         threading.Thread(target=relay.flush, daemon=True).start()
