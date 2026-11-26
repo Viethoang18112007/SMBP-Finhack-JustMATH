@@ -102,7 +102,14 @@ function resultHtml() {
       ${typoHtml(entry)}
       <div class="qa-chips" role="group" aria-label="Fund">${chipsHtml(entry)}</div>
       <div class="qa-row">${action}<button type="button" class="qa-btn ghost" data-close="quick">Cancel</button></div>
+      ${w.receipt ? `<div data-rate-slot="receipt" data-context="${escapeHtml(receiptContext(entry))}" data-question="Is the reading correct?"></div>` : ""}
     </div>`;
+}
+
+// The context of a receipt rating: which sample (or a photo) and the amount read, in cents.
+function receiptContext(entry) {
+  const source = w.shot && w.shot.kind === "sample" ? w.shot.src.split("/").pop() : "photo";
+  return `receipt:${source}:${entry.amount}`;
 }
 
 function typePane() {

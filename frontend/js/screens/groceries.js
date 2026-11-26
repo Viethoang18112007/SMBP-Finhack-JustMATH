@@ -118,7 +118,7 @@ function resultHtml() {
     : `<section class="groc-store"><div class="groc-store-head"><strong>Typical supermarket prices</strong><span class="tag">Tap a store on the map or in the list to price it there and add the trip</span></div>${basketHtml(plan.basket)}</section>`;
   return `${fitHtml(plan)}${verdict}${body}${source}
     <details class="more"><summary>How to cook it (${recipe.minutes} min)</summary><p>${escapeHtml(recipe.steps)}</p></details>
-    <div data-rate-slot="groceries" data-context="recipe:${escapeHtml(recipe.id)}"></div>`;
+    <div data-rate-slot="groceries" data-context="recipe:${escapeHtml(recipe.id)}" data-question="Is this cost realistic?"></div>`;
 }
 
 function pickedHtml() {

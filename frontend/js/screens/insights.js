@@ -18,6 +18,7 @@ export function insightsCard() {
       <p class="ins-head">${escapeHtml(ins.headline)}</p>
       ${ok ? "" : `<ul class="ins-list">${warningHtml(ins.warnings[0])}</ul>`}
       <p class="hint ins-rules">Offline rules, not AI.</p>
+      <div data-rate-slot="insight" data-context="insight:${escapeHtml(state.data.weekStart || "")}" data-question="Is this useful?"></div>
       <button type="button" class="ghost small" data-screen-go="week">${ins.warnings.length > 1 ? `See all ${ins.warnings.length} on Week` : "See Week"}</button>
     </section>`;
 }
