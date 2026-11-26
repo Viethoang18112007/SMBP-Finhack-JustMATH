@@ -17,6 +17,7 @@ export function insightsCard() {
       <div class="card-head"><h2 class="title" id="ins-title">This week</h2><span class="ins-badge">${ok ? "On track" : "Heads up"}</span></div>
       <p class="ins-head">${escapeHtml(ins.headline)}</p>
       ${ok ? "" : `<ul class="ins-list">${warningHtml(ins.warnings[0])}</ul>`}
+      <p class="hint ins-rules">Offline rules, not AI.</p>
       <button type="button" class="ghost small" data-screen-go="week">${ins.warnings.length > 1 ? `See all ${ins.warnings.length} on Week` : "See Week"}</button>
     </section>`;
 }
@@ -32,6 +33,7 @@ export function insightsDetail() {
       <p class="ins-head">${escapeHtml(ins.headline)}</p>
       ${ins.warnings.length ? `<ul class="ins-list">${ins.warnings.map(warningHtml).join("")}</ul>` : ""}
       ${bars ? `<div class="label">${hk(ins.total)} in ${ins.daysSoFar} ${ins.daysSoFar === 1 ? "day" : "days"}</div><ul class="ins-bars">${bars}</ul>` : `<p class="empty-line">No payments yet this week.</p>`}
+      <p class="hint ins-rules">Offline rules, not AI.</p>
       ${ins.notes.length ? `<details class="more"><summary>More notes</summary><ul class="ins-notes">${ins.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul></details>` : ""}
     </section>`;
 }

@@ -110,6 +110,7 @@ function typePane() {
       <input id="w-text" autocomplete="off" placeholder="$50 KFC dinner" aria-label="Type a payment, like $50 KFC dinner" value="${escapeHtml(w.text)}">
       <button type="submit" class="qa-go" aria-label="Read it">Go</button>
     </form>
+    <p class="qa-hint">Read by offline rules, not AI.</p>
 `;
 }
 
