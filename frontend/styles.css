@@ -929,7 +929,38 @@ body.phone-view .desk-side { display: flex; flex-direction: column; gap: var(--s
 .stack-legend .lg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stack-legend .num { margin-left: auto; font-weight: 650; }
 .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--fc); flex: 0 0 auto; }
-.slider { width: 100%; height: 44px; margin: 2px 0 0; accent-color: var(--fc, var(--blue)); cursor: pointer; background: transparent; }
+.slider { width: 100%; height: 44px; margin: 2px 0 0; accent-color: var(--fc, var(--blue)); cursor: pointer; background: transparent; touch-action: pan-y; }
+/* Fund sliders: a 28 px thumb on a filled track (--fill is set from JS), a value bubble while
+   dragging or focused, and a lock. pan-y: a vertical swipe still scrolls the page. */
+.slider-wrap { position: relative; }
+.slider-wrap .slider { -webkit-appearance: none; appearance: none; display: block; }
+.slider-wrap .slider::-webkit-slider-runnable-track {
+  height: 8px; border-radius: 4px;
+  background: linear-gradient(to right, var(--fc, var(--blue)) var(--fill, 0%), #e3e8ef var(--fill, 0%));
+}
+.slider-wrap .slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 28px; height: 28px; margin-top: -10px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--fc, var(--blue)); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+}
+.slider-wrap .slider::-moz-range-track { height: 8px; border-radius: 4px; background: #e3e8ef; }
+.slider-wrap .slider::-moz-range-progress { height: 8px; border-radius: 4px; background: var(--fc, var(--blue)); }
+.slider-wrap .slider::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid var(--fc, var(--blue)); }
+.slider-wrap .slider:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 10px; }
+.slider-wrap .slider:disabled { opacity: 0.45; cursor: not-allowed; }
+.slider-bubble {
+  position: absolute; bottom: calc(100% - 6px); transform: translateX(-50%);
+  padding: 3px 8px; border-radius: 8px; background: var(--ink); color: #fff;
+  font-size: 12px; font-weight: 700; white-space: nowrap; pointer-events: none; z-index: 2;
+}
+.slider-bubble[hidden] { display: none; }
+.budget-row-tools { display: inline-flex; align-items: center; gap: 2px; }
+.lock-btn {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; min-height: 44px; margin: -12px -10px -12px 0;
+  padding: 0; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--muted);
+}
+.lock-btn[aria-pressed="true"] { color: var(--blue); background: var(--blue-bg, #e8f0fe); }
+.lock-btn:not([aria-pressed="true"]) .lock-shackle { transform: translate(3px, -2px) rotate(18deg); transform-origin: 16px 11px; }
+.budget-row.is-locked input[readonly] { background: #f3f5f8; color: var(--muted); }
 .amount-slider { --fc: var(--blue-2); }
 .quick { display: flex; gap: var(--s2); flex-wrap: wrap; margin: 2px 0 var(--s1); }
 .quick .chip { min-height: 44px; min-width: 64px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--line); background: var(--card); font-weight: 650; font-size: 14px; }
