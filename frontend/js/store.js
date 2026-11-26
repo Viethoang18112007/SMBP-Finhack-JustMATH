@@ -64,6 +64,7 @@ export const state = {
   deviceView: "home", // inside the frame: "home" (home screen) or "app"
   // The Feedback tab: the stars and words being written, and the latest feedback (null: loading).
   feedback: { rating: 0, text: "", list: null, sending: false, sent: false, error: "" },
+  homeOpen: false, // without the frame: the home screen (widgets) shown full screen
 };
 
 export function setFundView(view) {

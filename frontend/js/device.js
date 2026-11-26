@@ -1,9 +1,10 @@
 // The simulated phone around the app on wide screens: the frame, a status bar with the Hong Kong
 // time, a home screen with the SSUST icon and widgets, and the home bar that goes back to it.
-// On narrow screens (a real phone) none of this shows: the app is full screen.
+// On narrow screens (a real phone) the app is full screen; the header's Widgets button opens the
+// same home screen full screen (homeOverlayOpen), so the widgets work on every screen size.
 
-import { setHtml } from "./closers.js";
 import { NATIVE } from "./config.js";
+import { registerOverlay, setHtml } from "./closers.js";
 import { checkNotifications } from "./notifications.js";
 import { refreshMapSize } from "./mapview.js";
 import { render } from "./render.js";
@@ -34,17 +35,38 @@ function el(id) {
   return document.getElementById(id);
 }
 
+// Without the frame (narrow window, a real phone, or Phone view off) the same home screen opens
+// full screen from the header's Widgets button, so the widgets and quick add stay reachable.
+export function homeOverlayOpen() {
+  return !NATIVE && !isFramed() && Boolean(state.homeOpen); // the iOS app has real iOS widgets
+}
+
 // Frame on or off, home screen or app: classes, hidden and inert follow the state.
 export function applyFrame() {
   const framed = isFramed();
+  if (framed) state.homeOpen = false;
+  const overlay = homeOverlayOpen();
   const home = framed && state.deviceView === "home";
+  const shown = home || overlay; // the home screen inside the frame, or full screen without it
   document.body.classList.toggle("phone-view", framed);
+  document.body.classList.toggle("home-open", overlay);
   const device = el("device");
-  if (device) device.dataset.view = home ? "home" : "app";
-  if (el("home")) el("home").hidden = !home;
-  if (el("phone")) el("phone").inert = home;
+  if (device) device.dataset.view = shown ? "home" : "app";
+  if (el("home")) el("home").hidden = !shown;
+  if (el("phone")) el("phone").inert = shown;
   if (el("desk-side")) el("desk-side").hidden = !framed;
+  el("home-btn")?.setAttribute("aria-expanded", String(overlay));
   renderHome();
+}
+
+export function openHomeOverlay() {
+  if (isFramed()) {
+    showHome();
+    return;
+  }
+  state.homeOpen = true;
+  applyFrame();
+  el("ssust-icon")?.focus();
 }
 
 // The widgets read the same state as the app; called after every render.
@@ -69,10 +91,13 @@ export function showHome() {
 // `from` is the tapped element or its rect, read before it was re-rendered; a hidden one (no
 // size) zooms from the middle of the phone instead of the corner of the screen.
 export function openApp(screen, from) {
+  const overlay = homeOverlayOpen();
   state.deviceView = "app";
+  state.homeOpen = false;
   const review = screen === "review";
   if (review) screen = "today";
-  if (screen && state.data && state.view && state.view.ready) state.screen = screen;
+  // Today is also the budget setup, so it opens even before a budget is saved.
+  if (screen && state.data && (screen === "today" || (state.view && state.view.ready))) state.screen = screen;
   applyFrame();
   render();
   const phone = el("phone");
@@ -89,6 +114,7 @@ export function openApp(screen, from) {
     phone.addEventListener("animationend", () => phone.classList.remove("app-zoom"), { once: true });
   }
   if (review) document.getElementById("review-card")?.scrollIntoView({ block: "start" });
+  if (overlay && !screen) el("home-btn")?.focus();
   refreshMapSize();
   setTimeout(refreshMapSize, 0);
 }
@@ -176,7 +202,7 @@ function initPager() {
     event.stopPropagation();
   }, true);
   document.addEventListener("keydown", (event) => {
-    if (!onHome() || document.getElementById("tour") || event.target.closest("input, textarea, select")) return;
+    if (!(onHome() || homeOverlayOpen()) || document.getElementById("tour") || event.target.closest("input, textarea, select")) return;
     if (!el("cam-screen")?.hidden) return;
     if (event.key === "ArrowLeft") goToPage(homePage - 1);
     else if (event.key === "ArrowRight") goToPage(homePage + 1);
@@ -205,6 +231,9 @@ export function initDevice() {
   tick();
   setInterval(tick, 15000);
   el("home-bar")?.addEventListener("click", showHome);
+  el("home-btn")?.addEventListener("click", openHomeOverlay);
+  // Escape (or opening the app from the dock icon or a widget) closes the full-screen home.
+  registerOverlay({ name: "home", layer: 1, isOpen: homeOverlayOpen, close: () => openApp(null) });
   el("home")?.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-open-app]");
     if (btn) openApp(btn.dataset.openApp, btn);

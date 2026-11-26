@@ -108,10 +108,29 @@ The app has **no demo**: no Live/Demo switch, no sample weeks, tour, simulated t
 - **Badges:** First entry, Planner, On a roll (3 days), Full week (7 days), Money left (3 stars), Five stars, Saver (HK$500 in Long-term Savings), Smart explorer (a bronze medal). On Week, under Your progress.
 - **Campus medals:** on the Map, tap a place, then **Log a meal here** (it opens Add payment with the place). Bronze at 3 different places near a campus, silver at 7, gold at 15. A meal only counts when it fit that day's food money, so the medal rewards eating well within budget, not eating out more. Undoing the payment removes it.
 - **Feedback** (the last tab): 1 to 5 stars and a few words, saved on the server, with the latest feedback listed below.
+## Troubleshooting
+
+Start with the smoke test. It starts SSUST on a free port with an empty, temporary data folder (your `data/` is never touched) and checks every file the page loads and every endpoint the widgets use:
+
+```sh
+python scripts/smoke_fresh_clone.py           # this folder, as it is on disk
+python scripts/smoke_fresh_clone.py --clone   # a fresh git clone of the last commit
+```
+
+| What you see | Why, and what to run |
+| --- | --- |
+| The widgets show **No budget yet** | A fresh live database has no budget. Tap **Set my budget**, or try the sample week: `python run.py --demo`. |
+| No phone frame, no home screen | The phone frame only shows when the browser window is wider than 900 px (901 px and up) and Settings > Display > Phone view is on. Without it, the **Widgets** button in the header opens the same home screen full screen. |
+| `python: command not found` (macOS, Linux) | Use `python3 run.py`. Check the version with `python3 --version` (3.12 is tested). |
+| `Could not start on port 8765` | SSUST (or something else) already uses that port. Run `python run.py --port 0` for any free port, or `--port 8766`. |
+| `Could not open the data folder ... newer` | The `data/` folder was written by a newer branch. Run `python run.py --data data-new` for a separate folder. |
+| `Untrusted host.` | Open <http://127.0.0.1:8765> or <http://localhost:8765> (the server only answers those names). |
+| The page says the server is not running | Start it again with `python run.py`, then reload the page. |
+| Receipt reading never finishes | The offline reader needs WebAssembly SIMD (Chrome, Edge, Firefox, Safari 16.4 or newer). Type the amount instead. |
 
 ## Phone view, sliders and the 30 day projection
 
-- **Phone view.** On screens wider than 900 px the app sits inside a generic phone frame (status bar with the Hong Kong time, a home screen, and a home bar). The home screen swipes **left and right** like a phone: page 1 holds the widgets (quick add included), page 2 the apps, with page dots and a dock that keeps the SSUST icon on every page. Swipe on a touch screen, drag with the mouse, use the arrow keys or tap a dot. Tap the SSUST icon to open the app; the home bar goes back. Settings > Display > **Phone view** turns it off (remembered in the browser). On a real phone the app is full screen as before.
+- **Phone view.** On screens wider than 900 px the app sits inside a generic phone frame (status bar with the Hong Kong time, a home screen, and a home bar). The home screen swipes **left and right** like a phone: page 1 holds the widgets (quick add included), page 2 the apps, with page dots and a dock that keeps the SSUST icon on every page. Swipe on a touch screen, drag with the mouse, use the arrow keys or tap a dot. Tap the SSUST icon to open the app; the home bar goes back. Settings > Display > **Phone view** turns it off (remembered in the browser). On a real phone, a narrow window or with Phone view off, the app is full screen and the **Widgets** button in the header opens the same home screen full screen (Escape, the SSUST icon or any widget goes back to the app).
 - **Sliders.** The weekly total has a slider (HK$10 steps, 0 to the larger of HK$5,000 and twice the total), and so does each fund (HK$10 steps, 0 to the weekly total), synced with the fund's % and HK$ fields. Typing more is allowed. In Live, a fund can't go below what it already paid for this week. A stacked **total funds bar** at the top of the budget card shows the week split by fund and follows every change live. Add payment has a slider (HK$1 steps) and quick amounts HK$20 / 35 / 50 / 80; the preview line follows.
 - **30 day projection** (`backend/ssust/projection.py`). From every payment that still counts: real cumulative spending per day since the first payment, the average per day over the last 14 days (or all days if fewer), and the next 30 days at that average. The budget pace is the five spending funds of this week / 7 per day (Long-term Savings is not spending). Status: **Comfortable** if the projected 30 days are at most 90% of pace x 30, **On track** up to 105%, **Spending too fast** above (`STATUS_PCT`, exact integer comparisons). With fewer than 2 days of data there is no projection ("Projection starts after 2 days of use").
 
@@ -187,7 +206,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (879 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (891 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 

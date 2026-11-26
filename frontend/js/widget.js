@@ -47,10 +47,24 @@ const w = {
 // needs no URL. Only one is kept: the previous one is closed when a new photo replaces it.
 let picked = null;
 
+// A payment can only be saved once the week has a budget (the server refuses it before).
+function ready() {
+  return Boolean(state.view && state.view.ready);
+}
+
 // The small widget beside it already shows what is left today: no second copy here.
 function leftLine() {
-  const view = state.view;
-  return !view || !view.ready ? "Set your weekly budget in the app" : "Quick add";
+  return ready() ? "Quick add" : "No budget yet";
+}
+
+// Before a budget: no form that would only fail. One button opens the setup, and in live mode
+// the demo week is one tap away (data-switch, handled in main.js).
+function setupPane() {
+  const demo = state.data && state.data.mode === "live"
+    ? `<button type="button" class="qa-btn ghost" data-switch="demo">Try the demo week</button>`
+    : "";
+  return `<p class="qa-hint">Quick add works once this week has a budget.</p>
+    <div class="qa-row"><button type="button" class="qa-btn primary" data-w-setup>Set my weekly budget</button>${demo}</div>`;
 }
 
 function chipsHtml(entry) {
@@ -215,8 +229,8 @@ export function renderQuick() {
         ${w.error ? `<p class="qa-error" role="alert">${escapeHtml(w.error)}</p>` : ""}
         ${resultHtml()}`;
     const html = `<div class="qa-head"><img src="img/icon-64.png" alt="" width="22" height="22"><strong>SSUST</strong><span>${escapeHtml(leftLine())}</span></div>
-        <div class="qa-tabs" role="tablist" aria-label="Add by">${tabs}</div>
-        ${w.tab === "type" ? typePane() : photoPane()}
+        ${ready() ? `<div class="qa-tabs" role="tablist" aria-label="Add by">${tabs}</div>
+        ${w.tab === "type" ? typePane() : photoPane()}` : setupPane()}
         ${w.done ? `<p class="qa-done" role="status">${escapeHtml(w.done)}</p>` : ""}
         ${inline}`;
     if (setHtml(root, html)) {
@@ -327,6 +341,12 @@ async function readSample(file) {
 async function addEntry() {
   const entry = w.entry;
   if (!entry || entry.typo) return;
+  if (!ready()) {
+    w.error = "Set your weekly budget first: tap Set my weekly budget.";
+    w.entry = null;
+    renderQuick();
+    return;
+  }
   w.busy = true;
   renderQuick();
   const saved = await quickAdd({ amount: entry.amount, category: entry.category, note: entry.note });
@@ -407,6 +427,7 @@ function bindWidget(root) {
     renderQuick();
   });
   root.querySelector("[data-w-add]")?.addEventListener("click", addEntry);
+  root.querySelector("[data-w-setup]")?.addEventListener("click", (event) => openApp("today", event.currentTarget));
   root.querySelector("[data-w-check]")?.addEventListener("click", checkEntry);
 }
 

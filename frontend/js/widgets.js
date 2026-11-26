@@ -25,9 +25,30 @@ function fundBars(data) {
   }).join("");
 }
 
+// No budget yet (a fresh live database, or a new week): HK$0 everywhere would look broken, so
+// the widgets say what to do. One tap opens the setup on Today; in live mode the demo week is
+// one more tap away (the same data-switch buttons as Settings, handled in main.js).
+function setupWidgetsHtml(data) {
+  const demo = data.mode === "live"
+    ? `<button type="button" class="w-btn ghost" data-switch="demo">Try the demo week</button>`
+    : "";
+  return `<button type="button" class="widget small setup" data-open-app="today" aria-label="SSUST: no budget yet. Open the app to set your weekly budget">
+      <span class="w-app">SSUST</span>
+      <span class="w-label">Left today</span>
+      <strong class="w-big w-none">No budget yet</strong>
+      <span class="pill w-pill">Tap to set it</span>
+    </button>
+    <div class="widget medium setup" role="group" aria-label="SSUST funds: no budget yet">
+      <span class="w-app">SSUST · Funds this week</span>
+      <span class="w-setup-text">Set your weekly budget and these bars fill with what is left in each fund.</span>
+      <span class="w-row w-actions"><button type="button" class="w-btn" data-open-app="today">Set my budget</button>${demo}</span>
+    </div>`;
+}
+
 export function widgetsHtml(state, updated) {
   const data = state.data;
   if (!data || !data.view) return "";
+  if (!data.view.ready) return setupWidgetsHtml(data);
   const left = hk(leftToday(data.view));
   const proj = data.projection;
   const review = (data.inbox || []).length;

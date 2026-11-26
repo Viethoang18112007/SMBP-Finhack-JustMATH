@@ -53,7 +53,14 @@ def main(argv=None, on_ready=None):
         server = make_server(args.data, LiveClock(), port=args.port)
     except OSError as error:
         print(f"Could not start on port {args.port}: {error}\n"
-              f"Is SSUST already running? Try another port, e.g. python run.py --port 8766",
+              f"Is SSUST already running? Try another port, e.g. python run.py --port 8766 (or --port 0 for any free port)",
+              file=sys.stderr)
+        return 1
+    except (RuntimeError, ValueError) as error:
+        # A data folder from a newer version of the app (another branch) or a swapped file: no traceback.
+        print(f"Could not open the data folder {args.data}: {error}\n"
+              f"If it was written by a newer version of SSUST, start with another folder:\n"
+              f"  python run.py --data data-new",
               file=sys.stderr)
         return 1
 
