@@ -30,7 +30,8 @@ class Navigation(unittest.TestCase):
             self.assertIn(word, screen)
         actions = read(JS / "actions.js")
         self.assertIn('api("/api/feedback", { rating', actions)
-        self.assertIn('api("/api/feedback")', actions)
+        # Private feedback: the app never asks for a list (only the team reads it).
+        self.assertNotIn('api("/api/feedback")', actions)
 
 
 class Rewards(unittest.TestCase):

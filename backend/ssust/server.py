@@ -88,7 +88,7 @@ class AppServer(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address, service, places_fetcher, quiet, public_hosts=(), device_factory=None,
-                 feedback_box=None, admin_token=None):
+                 feedback_box=None, admin_token=None, feedback_relay=None):
         self.service = service
         self.device_factory = device_factory  # device id -> Service, for the iPhone app
         self.devices = {}
@@ -97,6 +97,7 @@ class AppServer(ThreadingHTTPServer):
         self.quiet = quiet
         self.feedback = feedback_box
         self.admin_token = admin_token or None  # None: the admin routes do not exist (404)
+        self.feedback_relay = feedback_relay  # set: feedback goes to the central server (run.py)
         super().__init__(address, Handler)
         port = self.server_address[1]
         # public_hosts: exact host names a hosting proxy sends (serve.py); empty when run locally.
@@ -134,7 +135,7 @@ class AppServer(ThreadingHTTPServer):
 
 
 def make_server(data_dir, clock, port=0, places_fetcher=None, quiet=False, host=HOST, public_hosts=(),
-                admin_token=None):
+                admin_token=None, feedback_url=None):
     """A server on `host`:`port` (0 picks a free port; read it from server_address).
 
     `host` is 127.0.0.1 unless a hosting platform runs it (serve.py). `public_hosts`
@@ -143,7 +144,8 @@ def make_server(data_dir, clock, port=0, places_fetcher=None, quiet=False, host=
     `data_dir` holds the live and demo database files and the feedback file. `places_fetcher(kind,
     radius_km)` gives live places; it defaults to the Overpass fetch. `admin_token` opens the
     team-only feedback routes; by default it comes from the SSUST_ADMIN_TOKEN environment variable
-    (unset or empty: no admin routes).
+    (unset or empty: no admin routes). `feedback_url` (run.py: the hosted server by default) sends
+    feedback to the central server instead of keeping it here; None keeps it (serve.py, tests).
     """
     records, problems = prices.load_verified()
     if problems and not quiet:
@@ -165,8 +167,12 @@ def make_server(data_dir, clock, port=0, places_fetcher=None, quiet=False, host=
     if admin_token is None:
         admin_token = os.environ.get(feedback.TOKEN_ENV, "").strip()
     box = feedback.FeedbackBox(Path(data_dir) / feedback.FEEDBACK_FILE)
+    relay = feedback.Relay(box.path, feedback_url) if feedback_url else None
+    if relay is not None:
+        # Feedback left waiting by an earlier run (offline) goes now, without delaying the start.
+        threading.Thread(target=relay.flush, daemon=True).start()
     return AppServer((host, port), service, fetcher, quiet, tuple(public_hosts), device_factory,
-                     feedback_box=box, admin_token=admin_token)
+                     feedback_box=box, admin_token=admin_token, feedback_relay=relay)
 
 
 def _text(value, what):
@@ -406,9 +412,15 @@ class Handler(BaseHTTPRequestHandler):
     # feedback: anyone may send it, only the team reads it
     def post_feedback(self, data):
         entry = feedback.parse_request(data)
-        entry_id = self.server.feedback.add(**entry)
         # Only a thank-you goes back: never a list, never anyone else's feedback.
-        self.send_json({"ok": True, "id": entry_id, "thanks": "Thanks! Only the SSUST team can read this."})
+        if self.server.feedback_relay is not None:
+            entry_id, sent = self.server.feedback_relay.deliver(entry)
+            thanks = ("Thanks! Only the SSUST team can read this." if sent else
+                      "Thanks! It will reach the SSUST team when this computer is online. Only the team can read it.")
+        else:
+            entry_id = self.server.feedback.add(**entry)
+            thanks = "Thanks! Only the SSUST team can read this."
+        self.send_json({"ok": True, "id": entry_id, "thanks": thanks})
 
     def admin_allowed(self):
         """True when this request may read feedback; else 404 (admin off) or 401 is already sent."""

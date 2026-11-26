@@ -8,6 +8,7 @@ Press Ctrl+C to stop it.
 """
 
 import argparse
+import os
 import sys
 import webbrowser
 from pathlib import Path
@@ -32,6 +33,13 @@ def _port(text):
     return value
 
 
+def _feedback_url(text):
+    try:
+        return feedback.hub_url(text)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from None
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(prog="run.py", description="Start the SSUST budget app.")
     parser.add_argument("--port", type=_port, default=PORT,
@@ -40,6 +48,10 @@ def parse_args(argv):
                         help="folder for the live and demo database files (default: data/ next to run.py)")
     parser.add_argument("--demo", action="store_true", help="start in demo mode on the sample week")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    parser.add_argument("--feedback-url", type=_feedback_url, metavar="URL",
+                        default=_feedback_url(os.environ.get(feedback.URL_ENV, feedback.DEFAULT_HUB)),
+                        help="where feedback goes (default: the hosted SSUST server; 'local' keeps it here). "
+                             "Only feedback leaves this computer")
     parser.add_argument("--export-feedback", type=Path, metavar="FILE",
                         help="write every feedback entry in the data folder to FILE (CSV) and exit")
     args = parser.parse_args(argv)
@@ -58,7 +70,7 @@ def main(argv=None, on_ready=None):
         print(f"Wrote {count} feedback {'entry' if count == 1 else 'entries'} to {args.export_feedback.resolve()}")
         return 0
     try:
-        server = make_server(args.data, LiveClock(), port=args.port)
+        server = make_server(args.data, LiveClock(), port=args.port, feedback_url=args.feedback_url)
     except OSError as error:
         print(f"Could not start on port {args.port}: {error}\n"
               f"Is SSUST already running? Try another port, e.g. python run.py --port 8766 (or --port 0 for any free port)",
@@ -77,7 +89,8 @@ def main(argv=None, on_ready=None):
             server.service.set_mode("demo")
         url = f"http://{HOST}:{server.server_address[1]}/"
         print(f"SSUST is running at {url}", flush=True)
-        print(f"Data folder: {args.data}")
+        print(f"Data folder: {args.data} (your budget and payments stay on this computer)")
+        print(f"Feedback goes to: {args.feedback_url or 'this data folder'}")
         print("Only this computer can connect. Press Ctrl+C to stop.", flush=True)
         if not args.no_browser:
             try:

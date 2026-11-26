@@ -8,6 +8,9 @@ Standard library only. Settings come from environment variables:
     SSUST_PUBLIC_HOSTS         more public host names, comma separated (optional)
     SSUST_DATA                 folder for the database files (default: data/ next to this file)
     SSUST_MODE                 "demo" (default, the sample week) or "live"
+    SSUST_FEEDBACK_URL         send feedback on to another server (optional; by default this server
+                               is the central feedback server and keeps it, team-only)
+    SSUST_ADMIN_TOKEN          opens the team-only feedback view (/admin/feedback)
 
 It listens on every interface (0.0.0.0) because the platform's proxy forwards
 requests to it. The database lives on the platform's disk, which free plans
@@ -22,6 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "backend"))
 
+from ssust import feedback  # noqa: E402
 from ssust.dates import LiveClock  # noqa: E402
 from ssust.server import make_server  # noqa: E402
 
@@ -49,7 +53,9 @@ def config(env):
     if mode not in MODES:
         raise ValueError(f"SSUST_MODE must be demo or live, not {mode!r}")
     data = env.get("SSUST_DATA", "").strip()
+    feedback_url = feedback.hub_url(env.get(feedback.URL_ENV, ""))
     return {
+        "feedbackUrl": feedback_url,
         "port": int(text),
         "hosts": tuple(hosts),
         "data": Path(data).resolve() if data else ROOT / "data",
@@ -66,7 +72,7 @@ def main(env=None, on_ready=None):
         return 1
     try:
         server = make_server(settings["data"], LiveClock(), port=settings["port"],
-                             host=BIND, public_hosts=settings["hosts"])
+                             host=BIND, public_hosts=settings["hosts"], feedback_url=settings["feedbackUrl"])
     except OSError as error:
         print(f"Could not start on port {settings['port']}: {error}", file=sys.stderr)
         return 1

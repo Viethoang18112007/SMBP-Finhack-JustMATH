@@ -12,3 +12,7 @@ services:
         value: 3.12.10
       - key: SSUST_MODE
         value: demo
+      # The team-only feedback view (/admin/feedback). The value is typed in the Render dashboard,
+      # never stored in the repository.
+      - key: SSUST_ADMIN_TOKEN
+        sync: false

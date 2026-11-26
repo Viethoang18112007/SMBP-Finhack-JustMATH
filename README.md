@@ -71,6 +71,7 @@ On macOS and Linux, use `python3` if `python` is not Python 3. On Windows you ca
 | `--data DIR` | Folder for the database files (default `data/` next to `run.py`) |
 | `--demo` | Start in demo mode on the sample week |
 | `--no-browser` | Do not open a browser tab |
+| `--feedback-url URL` | Where feedback goes (default: the hosted SSUST server; `local` keeps it in `data/`). Also `SSUST_FEEDBACK_URL`. Only feedback leaves your computer |
 
 ### Live and demo
 
@@ -107,7 +108,7 @@ The app has **no demo**: no Live/Demo switch, no sample weeks, tour, simulated t
 - **Stars for last week:** 1 to 5 stars for how the last finished week was balanced. 1: some spending had nothing to cover it. 2: Long-term Savings had to cover spending, or nothing was left. 3: money was left (also the most a week with a reallocation between funds can get). 4: at least 10% of the spending budget left. 5: at least 20% left. Long-term Savings is not spending.
 - **Badges:** First entry, Planner, On a roll (3 days), Full week (7 days), Money left (3 stars), Five stars, Saver (HK$500 in Long-term Savings), Smart explorer (a bronze medal). On Week, under Your progress.
 - **Campus medals:** on the Map, tap a place, then **Log a meal here** (it opens Add payment with the place). Bronze at 3 different places near a campus, silver at 7, gold at 15. A meal only counts when it fit that day's food money, so the medal rewards eating well within budget, not eating out more. Undoing the payment removes it.
-- **Feedback** (the last tab): 1 to 5 stars and a few words, saved on the server, with the latest feedback listed below.
+- **Feedback** (the last tab): 1 to 5 stars and a few words. Private: it goes to the central SSUST feedback server, only the team can read it, and the app lists nobody's feedback (see Feedback (private) below).
 ## Troubleshooting
 
 Start with the smoke test. It starts SSUST on a free port with an empty, temporary data folder (your `data/` is never touched) and checks every file the page loads and every endpoint the widgets use:
@@ -206,7 +207,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (986 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
+The suite (998 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, the places and budget fit, the HTTP API on a real server, the launcher (including a real `run.py` process), and the frontend files. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `dev`.
 
 ## Budget rules
 
@@ -410,14 +411,12 @@ All routes are served on `127.0.0.1` only. POST bodies are JSON (`Content-Type: 
 | `POST /api/campus` | `{"campus": "hkbu" \| "hkust" \| "cuhk" \| "hku" \| "cityu"}` | Save the campus for the current mode |
 | `GET /api/places` | `?kind=food\|shop&radius=0.5\|1\|3\|5\|10` (default food, 3 km) | Places around the saved campus. Food comes with `budget` (`remaining`, `mealsLeft`, `perMeal`, `bands`, `verifiedRecords`) and, per place, `status` (`fits`, `over`, `estimate`, `unlikely`, `unknown`, `verified`), `label`, `why`, `verified` (dish, price, source, date, or null), `range`, and `fit` (the estimated range compared with food left: an estimate, never a verified fit) |
 | `GET /api/insights` | | This week's pace warnings and breakdown (the same as `insights` in the state) |
-| `GET /api/feedback` | | The latest feedback (`{"feedback": [{"id", "rating", "text", "createdAt"}]}`), newest first |
 | `POST /api/shortcut/wallet` | `{"amount": "HK$38.00" or 38, "merchant"?: "...", "card"?: "..."}` (iOS Shortcuts, with `X-SSUST-Device`) | Add a real Apple Pay payment to To review (source `wallet`). A valid amount is a new item, or fills in the amount of this card's amount-unknown item from the last 2 minutes. No amount (or 0) with a card or merchant: an amount-unknown item (`amount: null`, one per card within 2 minutes), answer `{"amountUnknown": true, "message"}`. Every field empty: 400, recorded as a test run |
 | `GET /api/widget` | (with `X-SSUST-Device`) | JSON for the SSUST home screen widget: left today (cents and HK$ text), spent against the allowance, every fund, today's last 3 payments, streak and shape, how many wait for review |
 | `GET /api/shortcut/today` | (with `X-SSUST-Device`) | Plain text, one line: left today, the streak, how many wait for review |
 | `GET /api/backup` | (with `X-SSUST-Device`) | Everything stored for this phone as one document: `format`, `schemaVersion`, `device`, `exportedAt`, `revision` (sha256 of the tables) and `tables` (`meta`, `weeks`, `payments`, `inbox`, `merchantFunds`, `visits`, `feedback`), money in integer cents |
 | `POST /api/restore` | that document (with the same `X-SSUST-Device`, at most 1 MB) | Merge it back in one transaction: rows already on the server are kept, missing ones are added (payments by request id or content, inbox items by external id). Checked first, field by field; anything wrong refuses the whole document. Restoring twice changes nothing. Answers `{"added", "state"}` |
 | `GET /api/ping` | | `{"ok": true}`. Wakes a sleeping host; reads no data |
-| `POST /api/feedback` | `{"rating": 1 to 5, "text"?: "<at most 500 characters>"}` | Save feedback about the app; answers with the latest feedback |
 | `POST /api/assistant/parse` | `{"text": "$50 KFC dinner"}` | `{"ok", "amount" (cents), "category", "note", "reason", "confident", "typo", "chain"}` or `{"ok": false, "error"}`. Reads only |
 | `POST /api/receipt/parse` | `{"text": "<OCR text, at most 3500 characters>"}` | `{"found", "amount" (cents or null), "line", "merchant", "entry"}` where `entry` is the parse_entry result for the merchant (fund, reason, typo). Reads only: nothing is saved |
 | `POST /api/connected` | `{"source": "apple_pay" \| "octopus" \| "hsbc", "on": true \| false}` | Switch a simulated payment source in the current mode |
@@ -447,9 +446,13 @@ The rules are pure functions in `backend/ssust/groceries.py` (integer cents, fra
 
 ## Feedback (private)
 
-Settings has a **Feedback** card: a 1 to 5 rating and an optional message (at most 500 characters). Students only ever get "Thanks" back. No route returns feedback to the app, so nobody can read anyone else's feedback, not even their own after sending it.
+The **Feedback** tab takes a 1 to 5 rating and an optional message (at most 500 characters), and the small **Rate this** buttons rate a receipt reading, the This week card or a grocery estimate. Students only ever get "Thanks" back. No route returns feedback to the app, so nobody can read anyone else's feedback, not even their own after sending it.
 
 What is stored, in `data/feedback.db` (one file for Live and Demo, never in git): id, time (UTC), rating, message, screen, an optional context id (for example a recipe), the app version, and an optional anonymous id for the browser (32 random hex characters, made in the browser; the student can untick it). No name, e-mail, account or IP address. The server checks every field and its size (`backend/ssust/feedback.py`).
+
+**Where it goes.** Your budget, payments and everything else stay on your computer (`data/`). Feedback is the only thing that leaves it: the local server sends each entry, server to server, to the central SSUST feedback server (`https://ssust-api.onrender.com/api/feedback`, the hosted `serve.py`). Offline, it waits in `data/feedback.db` (an outbox) and goes at the next send or the next start; once delivered, no copy stays on your computer. Only the feedback fields are sent (rating, message, screen, context id, app version, the optional anonymous id): never an amount, a fund or a payment. `python run.py --feedback-url local` (or `SSUST_FEEDBACK_URL=local`) keeps it in your own `data/` instead. The iPhone app already talks to the hosted server, so its feedback lands there directly. The hosted server keeps what it receives (it is the central server unless `SSUST_FEEDBACK_URL` is set there too); set `SSUST_ADMIN_TOKEN` in the Render dashboard (the blueprint asks for it, it is never in the repository).
+
+**Render's free disk is wiped on every restart or sleep**, and the feedback on it with it: read or export it regularly from `/admin/feedback`, or give the service a paid persistent disk and point `SSUST_DATA` to it.
 
 How the team reads it:
 
@@ -467,7 +470,7 @@ How the team reads it:
    ```
    Scripts can call the API directly: `curl -H "Authorization: Bearer $SSUST_ADMIN_TOKEN" http://127.0.0.1:8765/api/admin/feedback`.
 
-Without `SSUST_ADMIN_TOKEN`, `/api/admin/feedback` and `/admin/feedback` answer 404 (they do not exist). A wrong or missing token gets 401. The token is only read from the `Authorization` header, compared in constant time, and never logged (the request log also drops every query string). On a local install the feedback stays on that computer: the team reads it from a hosted server or from exported CSV files.
+Without `SSUST_ADMIN_TOKEN`, `/api/admin/feedback` and `/admin/feedback` answer 404 (they do not exist). A wrong or missing token gets 401. The token is only read from the `Authorization` header, compared in constant time, and never logged (the request log also drops every query string). The team reads everyone's feedback on the hosted server; a computer started with `--feedback-url local` keeps its own (export it with `--export-feedback`).
 
 ## Limits
 

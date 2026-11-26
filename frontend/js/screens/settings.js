@@ -3,7 +3,6 @@ import { NATIVE } from "../config.js";
 import { shortcutsCard } from "./shortcuts.js";
 import { state } from "../store.js";
 import { connectedCard, tapButtons } from "../inbox.js";
-import { feedbackCard } from "../feedback.js";
 
 export { budgetFields };
 
@@ -68,6 +67,5 @@ export function settingsScreen(view) {
     ${modeCard}
     ${connectedCard()}
     ${display}
-    ${feedbackCard()}
     ${help}`;
 }

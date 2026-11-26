@@ -62,8 +62,8 @@ export const state = {
   scan: null, // the receipt scan in the Add sheet: { status, percent, words, line, merchant }
   phoneView: readPhoneView(), // the phone frame on wide screens
   deviceView: "home", // inside the frame: "home" (home screen) or "app"
-  // The Feedback tab: the stars and words being written, and the latest feedback (null: loading).
-  feedback: { rating: 0, text: "", list: null, sending: false, sent: false, error: "" },
+  // The Feedback tab: the stars and words being written. Feedback is private: nothing is listed.
+  feedback: { rating: 0, text: "", sending: false, sent: false, thanks: "", error: "" },
   homeOpen: false, // without the frame: the home screen (widgets) shown full screen
 };
 

@@ -302,10 +302,12 @@ class FeedbackUi(unittest.TestCase):
         self.js = (ROOT / "frontend" / "js" / "feedback.js").read_text(encoding="utf-8")
         self.settings = (ROOT / "frontend" / "js" / "screens" / "settings.js").read_text(encoding="utf-8")
 
-    def test_settings_card_sends_and_only_thanks(self):
-        self.assertIn("feedbackCard", self.settings)
+    def test_feedback_tab_sends_and_only_thanks(self):
+        # The Feedback tab is the place to send it (no second card in Settings).
+        self.assertNotIn("feedbackCard", self.settings)
         self.assertIn('"/api/feedback"', self.js)
-        self.assertIn("Thanks", self.js)
+        tab = (ROOT / "frontend" / "js" / "screens" / "feedback.js").read_text(encoding="utf-8")
+        self.assertIn("Thanks", tab)
         # The app never asks for a list of feedback.
         self.assertNotIn("/api/admin", self.js)
         self.assertNotIn('api("/api/feedback")', self.js)

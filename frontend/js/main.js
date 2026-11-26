@@ -1,6 +1,6 @@
 // Entry point: the static shell (header, Add button, toast, bottom navigation) and the first load.
 
-import { closeAdd, closeSheet, loadFeedback, loadMap, openAdd, showToast, simulateTap, switchMode, undoPayment } from "./actions.js";
+import { closeAdd, closeSheet, loadMap, openAdd, showToast, simulateTap, switchMode, undoPayment } from "./actions.js";
 import { api, setReadOnly, wake } from "./api.js";
 import { RETRY_MS, WAKE_WAIT_MS } from "./backup.js";
 import { registerOverlay } from "./closers.js";
@@ -40,11 +40,7 @@ document.getElementById("nav").addEventListener("click", (event) => {
   else {
     state.screen = btn.dataset.screen;
     state.mapLoading = false;
-    if (state.screen === "feedback") {
-      state.feedback.sent = false;
-      state.feedback.list = null;
-      loadFeedback();
-    }
+    if (state.screen === "feedback") state.feedback.sent = false;
     render();
   }
 });

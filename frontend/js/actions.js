@@ -13,6 +13,7 @@ import { applyState, state } from "./store.js";
 import { confirmBody, reviewAmountError, typoAnswered } from "./tap.js";
 import { budgetMismatch } from "./budget.js";
 import { openGroceries } from "./screens/groceries.js";
+import { deviceId } from "./feedback.js";
 
 // What the tanks animate after a save: which fund paid, and which others gave to it.
 function flowOf(payment) {
@@ -584,18 +585,8 @@ export async function quickAdd({ amount, category, note }) {
   return "saved";
 }
 
-// Feedback tab: load the latest feedback, then send stars and words.
-export async function loadFeedback() {
-  try {
-    const data = await api("/api/feedback");
-    state.feedback.list = data.feedback;
-  } catch (err) {
-    state.feedback.list = [];
-    state.feedback.error = err.message;
-  }
-  if (state.screen === "feedback") render();
-}
-
+// Feedback tab: send stars and words. Private: the server answers only a thank-you, and no
+// route lists feedback (only the team reads it, see feedback.py).
 export async function sendFeedback() {
   const f = state.feedback;
   if (f.sending) return;
@@ -611,8 +602,8 @@ export async function sendFeedback() {
   f.sent = false;
   render();
   try {
-    const data = await api("/api/feedback", { rating: f.rating, text: f.text });
-    Object.assign(f, { list: data.feedback, rating: 0, text: "", sent: true });
+    const data = await api("/api/feedback", { rating: f.rating, text: f.text, screen: "feedback", deviceId: deviceId() || undefined });
+    Object.assign(f, { rating: 0, text: "", sent: true, thanks: data.thanks || "" });
   } catch (err) {
     f.error = err.fromServer ? err.message : "Could not send it. Check your connection and try again.";
   }
