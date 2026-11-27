@@ -1307,6 +1307,12 @@ class Declutter(unittest.TestCase):
         for kind in ("range_fits", "chain_fits"):
             self.assertIn(f'"do": "click", "selector": "#screen .place.status-{kind} + .place-src-box summary"', timeline)
 
+    def test_source_box_comes_right_after_its_row(self):
+        # The demo's "+ .place-src-box" selector needs the folded source to be the row's next sibling,
+        # so the "Log a meal here" button goes after it, not between them.
+        screen = (JS_ROOT / "screens" / "map.js").read_text(encoding="utf-8")
+        self.assertIn("</button>${source}${log}`", screen)
+
     def test_hook_points_at_the_amount(self):
         self.assertIn('"aim": ".hero .big"', (JS_ROOT / "demo-timeline.js").read_text(encoding="utf-8"))
         self.assertIn("a.aim ? document.querySelector(a.aim)", (JS_ROOT / "tour.js").read_text(encoding="utf-8"))

@@ -144,7 +144,7 @@ function placeRow(place) {
   return `<button type="button" class="place status-${status}${on}" data-key="pl-${escapeHtml(place.id)}" data-place="${escapeHtml(place.id)}" aria-pressed="${place.id === state.selectedId}">`
     + `<span class="dot status-${status}" aria-hidden="true"></span>`
     + `<span class="place-body"><span class="place-name">${escapeHtml(place.name)}</span>`
-    + `<span class="tag">${escapeHtml(meta)}</span>${badge}${why}</span></button>${log}${source}`;
+    + `<span class="tag">${escapeHtml(meta)}</span>${badge}${why}</span></button>${source}${log}`;
 }
 
 export function mapScreen() {
