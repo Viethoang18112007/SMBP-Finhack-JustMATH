@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>SSUST</string>
+        <string>UniVault</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -20,12 +20,23 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.adamattar.ssust</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ssust</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSCameraUsageDescription</key>
-	<string>SSUST uses the camera to read the total on a receipt.</string>
+	<string>UniVault uses the camera to read the total on a receipt.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>SSUST reads the total on a receipt photo you pick.</string>
+	<string>UniVault reads the total on a receipt photo you pick.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>

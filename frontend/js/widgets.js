@@ -32,14 +32,14 @@ function setupWidgetsHtml(data) {
   const demo = data.mode === "live"
     ? `<button type="button" class="w-btn ghost" data-switch="demo">Try the demo week</button>`
     : "";
-  return `<button type="button" class="widget small setup" data-open-app="today" aria-label="SSUST: no budget yet. Open the app to set your weekly budget">
-      <span class="w-app">SSUST</span>
+  return `<button type="button" class="widget small setup" data-open-app="today" aria-label="UniVault: no budget yet. Open the app to set your weekly budget">
+      <span class="w-app">UniVault</span>
       <span class="w-label">Left today</span>
       <strong class="w-big w-none">No budget yet</strong>
       <span class="pill w-pill">Tap to set it</span>
     </button>
-    <div class="widget medium setup" role="group" aria-label="SSUST funds: no budget yet">
-      <span class="w-app">SSUST · Funds this week</span>
+    <div class="widget medium setup" role="group" aria-label="UniVault funds: no budget yet">
+      <span class="w-app">UniVault · Funds this week</span>
       <span class="w-setup-text">Set your weekly budget and these bars fill with what is left in each fund.</span>
       <span class="w-row w-actions"><button type="button" class="w-btn" data-open-app="today">Set my budget</button>${demo}</span>
     </div>`;
@@ -55,14 +55,14 @@ export function widgetsHtml(state, updated) {
   const target = review ? "review" : "today";
   const reviewLine = review ? `<span class="w-review">${review} to review</span>` : "";
   const status = proj && proj.ready ? `, ${proj.label}` : "";
-  return `<button type="button" class="widget small" data-open-app="${target}" aria-label="SSUST: ${left} left today${escapeHtml(status)}. Open the app">
-      <span class="w-app">SSUST</span>
+  return `<button type="button" class="widget small" data-open-app="${target}" aria-label="UniVault: ${left} left today${escapeHtml(status)}. Open the app">
+      <span class="w-app">UniVault</span>
       <span class="w-label">Left today</span>
       <strong class="w-big num" data-w="left">${left}</strong>
       ${pill(proj)}
     </button>
-    <button type="button" class="widget medium" data-open-app="${target}" aria-label="SSUST funds: ${left} left today${review ? `, ${review} to review` : ""}. Open the app">
-      <span class="w-row"><span class="w-app">SSUST · Funds this week</span>${reviewLine}</span>
+    <button type="button" class="widget medium" data-open-app="${target}" aria-label="UniVault funds: ${left} left today${review ? `, ${review} to review` : ""}. Open the app">
+      <span class="w-row"><span class="w-app">UniVault · Funds this week</span>${reviewLine}</span>
       <span class="w-funds">${fundBars(data)}</span>
       <span class="w-foot">Updated ${escapeHtml(updated)}</span>
     </button>`;

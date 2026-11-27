@@ -1119,6 +1119,9 @@ body.phone-view .notify { position: absolute; top: 46px; width: calc(100% - 20px
 /* Quick add: the large widget on the home screen (assistant.parse_entry, offline rules). */
 .widget.large { display: block; aspect-ratio: auto; width: 100%; flex: 0 0 auto; }
 .qa-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+/* Native app: the Quick type sheet (same Type pane as the home screen widget). */
+.quick-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); margin-bottom: var(--s2); }
+.quick-sheet-head .sheet-title { margin: 0; }
 .qa-head img { border-radius: 6px; }
 .qa-head strong { color: var(--blue); font-size: 15px; }
 .qa-head span { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 600; }

@@ -1,6 +1,7 @@
 // The app's web view with one extra message channel, "ssustWidget": the web app sends this phone's
 // SSUST id, which goes into the App Group shared with the home screen widget (so nothing has to be
-// pasted), and the widget is asked to refresh because the numbers changed.
+// pasted), and the widget is asked to refresh because the numbers changed. It also opens the web
+// app's Quick type sheet when the Quick type bar widget launched the app (openQuickType).
 
 import Capacitor
 import UIKit
@@ -37,5 +38,32 @@ class AppViewController: CAPBridgeViewController {
         // Our own plugin (ReceiptScanner.swift) lives in this app, not in an npm package, so it is
         // registered here, before the web page loads.
         bridge?.registerPluginInstance(ReceiptScannerPlugin())
+    }
+
+    // The Quick type bar widget opened the app (ssust://quick): show the web app's Quick type sheet.
+    // At launch the page and its modules are still loading, so this retries until
+    // window.ssustOpenQuick exists (about 15 s at most), then stops.
+    func openQuickType() {
+        tryQuickType(0)
+    }
+
+    private func tryQuickType(_ attempt: Int) {
+        let script = "(typeof window.ssustOpenQuick === 'function') ? window.ssustOpenQuick() : false"
+        guard let webView = webView else {
+            retryQuickType(attempt)
+            return
+        }
+        webView.evaluateJavaScript(script) { [weak self] result, _ in
+            if (result as? Bool) != true {
+                self?.retryQuickType(attempt)
+            }
+        }
+    }
+
+    private func retryQuickType(_ attempt: Int) {
+        guard attempt < 30 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.tryQuickType(attempt + 1)
+        }
     }
 }

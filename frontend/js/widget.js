@@ -9,12 +9,17 @@
 // Samples row uses sample receipt images. Every image goes through the same real pipeline:
 // offline OCR in the browser (ocr.js) -> POST /api/receipt/parse (total, merchant, fund, reason,
 // typo check) -> Add payment pre-filled. A receipt is never saved by itself.
+//
+// iPhone app: there is no simulated home screen, so the same Type pane is drawn in the Quick type
+// sheet (#app-quick) instead. The Quick type bar widget opens it through ssust://quick: the native
+// side calls window.ssustOpenQuick() once this module has loaded.
 
 import { api } from "./api.js";
 import { prefillAdd, quickAdd } from "./actions.js";
 import { registerOverlay, setHtml } from "./closers.js";
 import { openApp } from "./device.js";
 import { CATEGORIES, FUND_NAME, RETAKE_HINT, escapeHtml, hk } from "./format.js";
+import { NATIVE } from "./config.js";
 import { readTotal } from "./ocr.js";
 import { streakChip } from "./rewards.js";
 import { state } from "./store.js";
@@ -60,7 +65,7 @@ function leftLine() {
 // Before a budget: no form that would only fail. One button opens the setup, and in live mode
 // the demo week is one tap away (data-switch, handled in main.js).
 function setupPane() {
-  const demo = state.data && state.data.mode === "live"
+  const demo = !NATIVE && state.data && state.data.mode === "live"
     ? `<button type="button" class="qa-btn ghost" data-switch="demo">Try the demo week</button>`
     : "";
   return `<p class="qa-hint">Quick add works once this week has a budget.</p>
@@ -93,7 +98,7 @@ function resultHtml() {
   const sure = entry.confident ? "" : `<span class="qa-unsure">Not sure: check the fund</span>`;
   const action = w.receipt
     ? `<button type="button" class="qa-btn primary" data-w-check${entry.typo || w.busy ? " disabled" : ""}>Check in Add payment</button>`
-    : `<button type="button" class="qa-btn primary" data-w-add${entry.typo || w.busy ? " disabled" : ""}>Add to SSUST</button>`;
+    : `<button type="button" class="qa-btn primary" data-w-add${entry.typo || w.busy ? " disabled" : ""}>Add to UniVault</button>`;
   return `<div class="qa-result" aria-live="polite">
       ${receipt}
       <div class="qa-amtline"><span class="qa-fund">${escapeHtml(FUND_NAME[entry.category])}</span><strong class="qa-amt num">-${hk(entry.amount)}</strong></div>
@@ -221,10 +226,12 @@ function renderCamera() {
   root.querySelector(".lk-sheet")?.scrollIntoView({ block: "end" });
 }
 
-// The large widget on the home screen. Re-drawn after every render; what is typed and the
-// focus are kept.
+// The large widget on the home screen (the Quick type sheet in the iPhone app). Re-drawn after
+// every render; what is typed and the focus are kept.
 export function renderQuick() {
-  const root = el("home-quick");
+  const sheet = el("quick-sheet");
+  if (sheet) sheet.hidden = !(NATIVE && state.quickOpen);
+  const root = NATIVE ? el("app-quick") : el("home-quick");
   if (root) {
     const typed = el("w-text");
     const focused = typed && document.activeElement === typed;
@@ -236,9 +243,11 @@ export function renderQuick() {
     const inline = w.screen ? "" : `${w.busy ? `<p class="qa-hint" role="status">Reading…</p>` : ""}
         ${w.error ? `<p class="qa-error" role="alert">${escapeHtml(w.error)}</p>` : ""}
         ${resultHtml()}`;
-    const html = `<div class="qa-head"><img src="img/icon-64.png" alt="" width="22" height="22"><strong>SSUST</strong><span>${escapeHtml(leftLine())}</span></div>
-        ${ready() ? `<div class="qa-tabs" role="tablist" aria-label="Add by">${tabs}</div>
-        ${w.tab === "type" ? typePane() : photoPane()}` : setupPane()}
+    // The sheet has its own title and only the Type pane (the app has its own receipt scanner).
+    const head = NATIVE ? "" : `<div class="qa-head"><img src="img/icon-64.png" alt="" width="22" height="22"><strong>UniVault</strong><span>${escapeHtml(leftLine())}</span></div>`;
+    const html = `${head}
+        ${ready() ? `${NATIVE ? "" : `<div class="qa-tabs" role="tablist" aria-label="Add by">${tabs}</div>`}
+        ${NATIVE || w.tab === "type" ? typePane() : photoPane()}` : setupPane()}
         ${w.done ? `<p class="qa-done" role="status">${escapeHtml(w.done)}</p>` : ""}
         ${inline}`;
     if (setHtml(root, html)) {
@@ -368,6 +377,7 @@ async function addEntry() {
   } else if (saved === "confirm") {
     w.done = "More than what is left today: choose where the extra comes from in the app.";
     w.entry = null;
+    state.quickOpen = false;
     openApp(null, el("home-quick"));
   } else {
     w.error = saved || "Could not add it. Try again in the app.";
@@ -435,7 +445,10 @@ function bindWidget(root) {
     renderQuick();
   });
   root.querySelector("[data-w-add]")?.addEventListener("click", addEntry);
-  root.querySelector("[data-w-setup]")?.addEventListener("click", (event) => openApp("today", event.currentTarget));
+  root.querySelector("[data-w-setup]")?.addEventListener("click", (event) => {
+    state.quickOpen = false;
+    openApp("today", event.currentTarget);
+  });
   root.querySelector("[data-w-check]")?.addEventListener("click", checkEntry);
 }
 
@@ -447,3 +460,23 @@ function cancelEntry() {
 registerOverlay({ name: "camera", layer: 20, isOpen: () => Boolean(w.screen), close: closeCamera });
 // Escape on a read receipt clears the result first (layer above the camera), then closes the camera.
 registerOverlay({ name: "quick", layer: 25, isOpen: () => Boolean(w.entry), close: cancelEntry });
+
+// iPhone app: the Quick type sheet. Opened from the Quick type bar widget (ssust://quick), with the
+// field focused. Safe before the first state has loaded: the next render fills it.
+function openQuickSheet() {
+  state.quickOpen = true;
+  w.tab = "type";
+  w.done = "";
+  renderQuick();
+  requestAnimationFrame(() => el("w-text")?.focus());
+  return true;
+}
+
+function closeQuickSheet() {
+  reset();
+  state.quickOpen = false;
+  renderQuick();
+}
+
+registerOverlay({ name: "quicksheet", layer: 24, isOpen: () => Boolean(NATIVE && state.quickOpen), close: closeQuickSheet });
+if (NATIVE) window.ssustOpenQuick = openQuickSheet;

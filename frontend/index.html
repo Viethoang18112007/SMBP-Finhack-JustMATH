@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>SSUST</title>
+  <title>UniVault</title>
   <link rel="icon" type="image/png" href="img/icon-64.png">
   <link rel="apple-touch-icon" href="img/icon-180.png">
   <link rel="stylesheet" href="styles.css">
@@ -26,7 +26,7 @@
       <div class="home-pager" id="home-pager" tabindex="0" aria-roledescription="pager" aria-label="Home screen pages. Swipe, drag or use the arrow keys">
         <div class="home-page" data-page="0" aria-label="Page 1 of 2: widgets">
           <div class="home-widgets" id="home-widgets"></div>
-          <section class="widget large qa" id="home-quick" aria-label="SSUST quick add"></section>
+          <section class="widget large qa" id="home-quick" aria-label="UniVault quick add"></section>
         </div>
         <div class="home-page" data-page="1" aria-label="Page 2 of 2: apps">
           <div class="home-grid" role="group" aria-label="Apps">
@@ -47,16 +47,16 @@
         <button type="button" class="home-dot" data-page-dot="1" aria-label="Page 2: apps"></button>
       </div>
       <div class="home-dock" role="group" aria-label="Dock">
-        <button type="button" class="app-icon" id="ssust-icon" data-open-app="today"><img src="img/icon-180.png" alt="" width="60" height="60"><span class="app-name">SSUST</span></button>
+        <button type="button" class="app-icon" id="ssust-icon" data-open-app="today"><img src="img/icon-180.png" alt="" width="60" height="60"><span class="app-name">UniVault</span></button>
         <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g2"></span><span class="app-name">Camera</span></span>
         <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g3"></span><span class="app-name">Notes</span></span>
         <span class="app-icon placeholder" aria-hidden="true"><span class="glyph g6"></span><span class="app-name">Clock</span></span>
       </div>
     </section>
     <section class="cam-screen" id="cam-screen" aria-label="Scan a receipt" hidden></section>
-    <section class="phone" id="phone" aria-label="SSUST app">
+    <section class="phone" id="phone" aria-label="UniVault app">
       <header class="top">
-        <div class="brand"><img class="brand-logo" src="img/logo.png" alt="SSUST" width="101" height="32"></div>
+        <div class="brand"><img class="brand-logo" src="img/logo.png" alt="UniVault" width="116" height="32"></div>
         <div class="top-tools">
           <span class="mode-badge" id="mode-badge" aria-live="polite">Loading…</span>
           <button type="button" class="icon-btn home-btn" id="home-btn" aria-label="Show the home screen widgets" aria-expanded="false" aria-controls="home" title="Widgets">
@@ -113,6 +113,12 @@
         </nav>
       </div>
       <div class="sheet" id="sheet" hidden></div>
+      <div class="sheet quick-sheet" id="quick-sheet" data-backdrop="quicksheet" hidden>
+        <div class="panel" role="dialog" aria-modal="true" aria-labelledby="quick-sheet-title">
+          <div class="quick-sheet-head"><h2 class="sheet-title" id="quick-sheet-title">Quick type</h2><button type="button" class="ghost small" data-close="quicksheet">Close</button></div>
+          <div class="qa" id="app-quick"></div>
+        </div>
+      </div>
     </section>
     <div class="home-strip"><button type="button" class="home-bar" id="home-bar" aria-label="Go to the home screen"><span aria-hidden="true"></span></button></div>
     </div>

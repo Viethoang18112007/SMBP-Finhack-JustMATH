@@ -58,7 +58,7 @@ const RULES = {
   daily(data) {
     if (!data.view || !data.view.ready) return [];
     return [{
-      key: `daily:${data.mode}:${data.today}`, app: "SSUST",
+      key: `daily:${data.mode}:${data.today}`, app: "UniVault",
       title: `Today: ${hk(Math.max(data.view.todayRemaining, 0))} for food`,
       body: "Your daily allowance: food money left divided by the days left, today included.",
       open: { screen: "today", target: ".hero" },
@@ -68,7 +68,7 @@ const RULES = {
     const pot = data.savingsPot;
     if (!pot || !pot.lastWeek || !(pot.total > 0)) return [];
     return [{
-      key: `closed:${data.mode}:${pot.lastWeek}`, app: "SSUST",
+      key: `closed:${data.mode}:${pot.lastWeek}`, app: "UniVault",
       title: "Week closed",
       body: `${hk(pot.lastFlexMoved)} left in your flexible funds moved to Long-term Savings (now ${hk(pot.total)}).`,
       open: { screen: "week" },
@@ -78,7 +78,7 @@ const RULES = {
     const ins = data.insights;
     if (!ins || !ins.ready) return [];
     return ins.warnings.filter((w) => w.fund !== "food").map((w) => ({
-      key: `empty:${data.mode}:${data.weekStart}:${w.fund}`, app: "SSUST",
+      key: `empty:${data.mode}:${data.weekStart}:${w.fund}`, app: "UniVault",
       title: "A fund may run out before Sunday",
       body: `${w.title}. ${w.text}`,
       open: { screen: "today", target: ".ins-card" },
@@ -88,7 +88,7 @@ const RULES = {
     const proj = data.projection;
     if (!proj || !proj.ready || proj.status !== "too_fast") return [];
     return [{
-      key: `fast:${data.mode}:${data.today}`, app: "SSUST",
+      key: `fast:${data.mode}:${data.today}`, app: "UniVault",
       title: "Spending too fast",
       body: `At this pace: ${hk(proj.projected30)} in the next 30 days, for a budget of ${hk(proj.budget30)}.`,
       open: { screen: "today", target: "#projection-card" },
@@ -195,7 +195,7 @@ function renderBadge() {
   const unread = notes.filter((n) => !n.read).length;
   badge.textContent = unread > 99 ? "99+" : String(unread);
   badge.hidden = unread === 0;
-  icon.setAttribute("aria-label", unread ? `SSUST, ${unread} new notification${unread > 1 ? "s" : ""}` : "SSUST");
+  icon.setAttribute("aria-label", unread ? `UniVault, ${unread} new notification${unread > 1 ? "s" : ""}` : "UniVault");
 }
 
 function renderCenter() {

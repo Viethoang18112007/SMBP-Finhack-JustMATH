@@ -65,6 +65,7 @@ export const state = {
   // The Feedback tab: the stars and words being written. Feedback is private: nothing is listed.
   feedback: { rating: 0, text: "", sending: false, sent: false, thanks: "", error: "" },
   homeOpen: false, // without the frame: the home screen (widgets) shown full screen
+  quickOpen: false, // iPhone app: the Quick type sheet, opened from the Quick type bar widget
 };
 
 export function setFundView(view) {

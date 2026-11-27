@@ -4,6 +4,9 @@
 // Group it shares with the widget (AppViewController), so nothing has to be pasted; the "Phone code"
 // setting is only a fallback. Money comes from the server as integer cents plus its HK$ text, so the
 // widget never formats or computes money. The last good answer is kept for when the server sleeps.
+//
+// Quick type (QuickTypeWidget): a bar shaped like a search field. A widget cannot take typed text,
+// so a tap opens the app through ssust://quick on its Quick type sheet, the field focused.
 
 import AppIntents
 import SwiftUI
@@ -12,9 +15,10 @@ import WidgetKit
 private let apiBase = "https://ssust-api.onrender.com"
 private let cacheKey = "ssust.widget.last"
 private let brand = Color(red: 0.12, green: 0.31, blue: 0.55)
+private let quickURL = URL(string: "ssust://quick")!
 
 struct PhoneCodeIntent: WidgetConfigurationIntent {
-    static let title: LocalizedStringResource = "SSUST"
+    static let title: LocalizedStringResource = "UniVault"
     static let description = IntentDescription("Shows what is left to spend today.")
 
     @Parameter(title: "Phone code (only if the widget asks)")
@@ -115,7 +119,7 @@ struct Provider: AppIntentTimelineProvider {
     private func load(_ configured: String?) async -> SSUSTEntry {
         let code = phoneCode(configured)
         guard code.count == 32, code.allSatisfy({ $0.isHexDigit }) else {
-            return SSUSTEntry(date: Date(), summary: nil, message: "Open SSUST once, then come back here.", stale: false)
+            return SSUSTEntry(date: Date(), summary: nil, message: "Open UniVault once, then come back here.", stale: false)
         }
         guard let url = URL(string: apiBase + "/api/widget") else {
             return cached(code)
@@ -140,7 +144,7 @@ struct Provider: AppIntentTimelineProvider {
            let summary = try? JSONDecoder().decode(Summary.self, from: data) {
             return SSUSTEntry(date: Date(), summary: summary, message: "", stale: true)
         }
-        return SSUSTEntry(date: Date(), summary: nil, message: "Server asleep. Open SSUST, then check again.", stale: false)
+        return SSUSTEntry(date: Date(), summary: nil, message: "Server asleep. Open UniVault, then check again.", stale: false)
     }
 }
 
@@ -269,7 +273,7 @@ struct SSUSTWidgetView: View {
                     small(summary)
                 }
             } else {
-                note("Set your weekly budget in SSUST.")
+                note("Set your weekly budget in UniVault.")
             }
         } else {
             note(entry.message)
@@ -278,7 +282,7 @@ struct SSUSTWidgetView: View {
 
     private func header(_ summary: Summary) -> some View {
         HStack(spacing: 4) {
-            Text("SSUST")
+            Text("UniVault")
                 .font(.caption.bold())
                 .foregroundStyle(brand)
             Spacer(minLength: 4)
@@ -327,7 +331,7 @@ struct SSUSTWidgetView: View {
     private func medium(_ summary: Summary) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("SSUST")
+                Text("UniVault")
                     .font(.caption.bold())
                     .foregroundStyle(brand)
                 TodayRing(summary: summary, lineWidth: 7)
@@ -348,7 +352,7 @@ struct SSUSTWidgetView: View {
     private func large(_ summary: Summary) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("SSUST")
+                Text("UniVault")
                     .font(.headline)
                     .foregroundStyle(brand)
                 Text(entry.date, format: .dateTime.weekday(.abbreviated).day().month())
@@ -407,7 +411,7 @@ struct SSUSTWidgetView: View {
 
     private func circular(_ summary: Summary) -> some View {
         Gauge(value: summary.leftShare) {
-            Text("SSUST")
+            Text("UniVault")
         } currentValueLabel: {
             Text(summary.leftText)
                 .minimumScaleFactor(0.4)
@@ -417,7 +421,7 @@ struct SSUSTWidgetView: View {
 
     private func rectangular(_ summary: Summary) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text("SSUST")
+            Text("UniVault")
                 .font(.caption2.bold())
             Text(summary.over ? "\(summary.leftText) over today" : "\(summary.leftText) left today")
                 .font(.headline)
@@ -436,7 +440,7 @@ struct SSUSTWidgetView: View {
 
     private func note(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("SSUST")
+            Text("UniVault")
                 .font(.caption.bold())
                 .foregroundStyle(brand)
             Text(text)
@@ -452,9 +456,93 @@ struct SSUSTWidget: Widget {
         AppIntentConfiguration(kind: "SSUSTWidget", intent: PhoneCodeIntent.self, provider: Provider()) { entry in
             SSUSTWidgetView(entry: entry)
         }
-        .configurationDisplayName("SSUST")
+        .configurationDisplayName("UniVault")
         .description("What is left to spend today, your funds and today's payments.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular])
+    }
+}
+
+// The Quick type bar: what is left today above a field with the same example as the web widget.
+struct QuickTypeView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: SSUSTEntry
+
+    var body: some View {
+        content
+            .widgetURL(quickURL)
+            .containerBackground(.fill.tertiary, for: .widget)
+    }
+
+    private var leftLine: String {
+        guard let summary = entry.summary, summary.ready else { return "Quick add" }
+        return summary.over ? "\(summary.leftText) over today" : "\(summary.leftText) left today"
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if family == .accessoryRectangular {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("UniVault")
+                    .font(.caption2.bold())
+                Label("Type a payment", systemImage: "keyboard")
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text(leftLine)
+                    .font(.caption2)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 4) {
+                    Text("UniVault")
+                        .font(.caption.bold())
+                        .foregroundStyle(brand)
+                    Spacer(minLength: 4)
+                    Text(leftLine)
+                        .font(.caption2.bold())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                HStack(spacing: 8) {
+                    Image(systemName: "keyboard")
+                        .foregroundStyle(.secondary)
+                    Text("$50 KFC dinner")
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text("Go")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(brand))
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 6)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.secondary.opacity(0.15)))
+                Text("Tap to type a payment. Read by offline rules, not AI.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+    }
+}
+
+struct QuickTypeWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(kind: "SSUSTQuickType", intent: PhoneCodeIntent.self, provider: Provider()) { entry in
+            QuickTypeView(entry: entry)
+        }
+        .configurationDisplayName("Quick type")
+        .description("A bar that opens UniVault ready to type a payment, like $50 KFC dinner.")
+        .supportedFamilies([.systemMedium, .accessoryRectangular])
     }
 }
 
@@ -462,5 +550,6 @@ struct SSUSTWidget: Widget {
 struct SSUSTWidgets: WidgetBundle {
     var body: some Widget {
         SSUSTWidget()
+        QuickTypeWidget()
     }
 }

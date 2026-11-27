@@ -63,7 +63,7 @@ export function shortcutsCard() {
     </section>
     <section class="card" aria-labelledby="widget-title">
       <h2 class="title" id="widget-title">SSUST widget</h2>
-      <p class="sub">Hold an empty spot on the home screen, Edit, Add Widget, then SSUST. Small, medium, large and lock screen sizes. It updates when you use the app and about every 30 minutes.</p>
+      <p class="sub">Hold an empty spot on the home screen, Edit, Add Widget, then UniVault. Small, medium, large and lock screen sizes. It updates when you use the app and about every 30 minutes. Quick type is a bar: tap it and the app opens ready to type a payment, like "$50 KFC dinner".</p>
       ${widgetLinked()
         ? `<p class="notice" role="status">Widget linked to this phone: nothing to paste.</p>`
         : `<p class="notice warn" role="status">This app version cannot reach the widget yet: update SSUST from TestFlight.</p>`}
