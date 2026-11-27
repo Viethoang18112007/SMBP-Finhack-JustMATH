@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 README = ROOT / "README.md"
-REPO = "Viethoang18112007/HKBU-Hackathon-2.0-SSUST"
+REPO = "Viethoang18112007/SMBP-Finhack-JustMATH"
 
 
 def text():
@@ -16,7 +16,7 @@ def text():
 class Readme(unittest.TestCase):
     def test_clone_url_and_folder(self):
         self.assertIn(f"git clone https://github.com/{REPO}.git", text())
-        self.assertIn("cd HKBU-Hackathon-2.0-SSUST\n", text())
+        self.assertIn("cd SMBP-Finhack-JustMATH\n", text())
 
     def test_ci_badge_uses_the_real_repo_and_workflow(self):
         workflow = ROOT / ".github" / "workflows" / "tests.yml"
