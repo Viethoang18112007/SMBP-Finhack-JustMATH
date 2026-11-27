@@ -191,7 +191,7 @@ export const STEPS = [
   {
     "id": "tap",
     "title": "Connected payments, simulated",
-    "body": "Settings has Apple Wallet, Octopus and HSBC switches, all simulated in this demo. A tap adds a sample payment to review. Nothing here reads a bank.",
+    "body": "Settings has Apple Wallet, Octopus and HSBC switches, all simulated in this demo. A tap adds a sample payment to review. Nothing here reads a bank. In the iPhone app, Apple Pay payments arrive through a Shortcuts automation.",
     "autoBody": "Apple Wallet is on and a simulated tap arrives. A sample: no card, no bank.",
     "screen": "settings",
     "target": "#connected-card",
@@ -229,7 +229,7 @@ export const STEPS = [
   {
     "id": "week",
     "title": "Where the money went",
-    "body": "This week by fund, the biggest day, top notes, last week to compare, then the 30 day curve.",
+    "body": "This week by fund, the biggest day, top notes and last week to compare. Your progress: the streak, stars for last week and badges.",
     "screen": "week",
     "target": ".ins-card",
     "dynamic": true,
