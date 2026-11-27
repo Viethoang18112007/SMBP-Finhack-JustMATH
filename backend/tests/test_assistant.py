@@ -58,6 +58,12 @@ OCR_NOODLE = 'SAMPLE RECEIPT - FICTIONAL SHOP\nLUCKY BOWL NOODLE BAR\nDemo Road,
 OCR_CHA_CHAAN_TENG = 'SAMPLE RECEIPT 示範 收據\n示範 茶 餐 廳 Demo Cafe\n餐 蛋 麵 Noodles $39.99\n凍 枋 茶 Iced lemon tea $5.99\n小 計 subtotal $35.99\n合計 TOTAL $35.00\n八 達 通 Octopus $35.99\n餘額 Remaining $82.40\n多 謝 光臨 - sample only'
 OCR_HOTPOT = 'SAMPLE RECEIPT - FICTIONAL SHOP\nEXAMPLE HOTPOT HOUSE\nTable 7 - 2 guests\nHotpot set for 2 136.00\nSoft drinks x2 16.00\nSubtotal 152.00\nService charge 10% 15.20\nGRAND TOTAL HKD 167.20\nVISA 李冰冰 半 冰冰 冰冰 半 半 本 主 4242 167.29\nSample amounts only'
 
+OCR_FUSION = ("|\nfusion\nHKUST TEL:27191463\n154715 能量果凍二自葡萄味  1 $15.90\n5% OFF (SU-SCO)            -$0.80\n"
+              "1 小計                         $15.10\nMASTER                                $15.10\n找                            $0.00\n"
+              "$15.10\nGP,MASTERCARD\nT MAST\n收銀員姓名; SCO1\n店繃'00463 收銀機:026。 收銀員:9991\n"
+              "單旦#;0141       25/11/26 15:25:28\n如需退換或退款,請於\n收據正本到本店。不適\n金及指定產品 , 詳情請\n"
+              "百佳超級市場(香\n莖天內帶同貨品,\na\n參閱網站PNS ,hk。\n港)有限公司")
+
 
 class ReceiptPipeline(unittest.TestCase):
     """OCR text -> receipt.parse_receipt (total, merchant) -> assistant.parse_entry (fund, reason, typo)."""
@@ -88,6 +94,16 @@ class ReceiptPipeline(unittest.TestCase):
                 self.assertEqual((entry["amount"], entry["category"], entry["reason"]), (amount, fund, reason))
                 self.assertEqual(entry["note"], merchant)
                 self.assertIsNone(entry["typo"])
+
+    def test_fusion_receipt_photo(self):
+        # What the browser reader read from frontend/img/samples/receipt-fusion.png (a real fusion
+        # receipt, card and reference numbers covered): no TOTAL line, the subtotal is sure because
+        # the MASTER card line shows the same amount.
+        r = self.scan(OCR_FUSION)
+        self.assertTrue(r["found"])
+        self.assertFalse(r["guess"])
+        self.assertEqual((r["amount"], r["merchant"]), (1510, "fusion"))
+        self.assertEqual((r["entry"]["category"], r["entry"]["reason"]), ("main", "no clear clue, so Main meals"))
 
     def test_typo_check_runs_on_a_receipt(self):
         r = self.scan(OCR_MCD.replace("TOTAL HK$44.50", "TOTAL HK$445.00"))

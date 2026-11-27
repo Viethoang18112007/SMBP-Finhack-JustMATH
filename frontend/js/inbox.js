@@ -19,9 +19,11 @@ export const SOURCES = {
 };
 export const SOURCE_ORDER = ["apple_pay", "octopus", "hsbc"];
 
-// Sample taps per source: fictional or generic merchants, sample amounts.
+// Sample taps per source, sample amounts. The first Apple Pay one copies a real Apple Pay message
+// near HKUST (merchant name as Wallet sends it); the card is always a sample.
 const PRESETS = {
   apple_pay: [
+    { merchant: "7-Eleven, Hk (1771)", amount: "18", card: "Sample card 0000" },
     { merchant: "Sample Coffee Kiosk", amount: "38", card: "Sample card 0000" },
     { merchant: "Sample Noodle Bar", amount: "52", card: "Sample card 0000" },
   ],
@@ -180,5 +182,8 @@ export function showNotification(item) {
 export function renderDeskSide() {
   const side = document.getElementById("desk-side");
   if (!side || !state.data) return;
-  side.innerHTML = `<div class="desk-box"><strong>Demo controls</strong><span class="hint">Outside the phone. Simulated payments only.</span>${tapButtons("desk")}</div>`;
+  const play = state.data.mode === "demo"
+    ? `<div class="desk-box"><strong>See it on its own</strong><span class="hint">2 minutes, no clicks: quick add, an Apple Pay payment, a receipt scan, overspending, the map, the Cooked score and the budget.</span><button type="button" class="primary small" data-tour="auto">Play the demo</button></div>`
+    : "";
+  side.innerHTML = `${play}<div class="desk-box"><strong>Demo controls</strong><span class="hint">Outside the phone. Simulated payments only.</span>${tapButtons("desk")}</div>`;
 }

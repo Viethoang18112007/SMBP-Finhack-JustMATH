@@ -49,8 +49,8 @@ export const TIMELINE = [
     "title": "A payment notification",
     "start": 22,
     "end": 33,
-    "caption": "A simulated Apple Pay tap arrives as a notification, then waits in the notification centre. Connected payments are simulated: no card, no bank.",
-    "narration": "When I pay with my phone, the payment arrives as a notification. In this prototype it's simulated: no real card, no bank.",
+    "caption": "An Apple Pay payment, HK$18 at 7-Eleven, arrives as a notification, then waits in the notification centre. Simulated here (no card, no bank); the iPhone app gets real ones through Shortcuts.",
+    "narration": "When I pay with my phone, the payment arrives by itself. Here it's simulated; in the iPhone app a Shortcuts automation sends the real one.",
     "setup": [{"do": "addPayment", "amount": "50", "category": "main", "note": "KFC dinner"}],
     "actions": [
       {"at": 0, "do": "show", "screen": "home"},
@@ -64,8 +64,8 @@ export const TIMELINE = [
     "title": "To review",
     "start": 33,
     "end": 43,
-    "caption": "HK$38 at a sample coffee kiosk: Snacks, picked from \"coffee\", and the typo check passed. Confirm uses the normal payment rules: HK$52 left today.",
-    "narration": "SSUST guesses the fund from the shop name, coffee means Snacks, and checks the amount for typos. One tap confirms. HK$52 left.",
+    "caption": "HK$18 at 7-Eleven: no clear clue in the name, so Main meals (you can change it), and the typo check passed. Confirm uses the normal payment rules: HK$72 left today.",
+    "narration": "SSUST picks a fund from the shop name and says why; 7-Eleven gives no clear clue, so Main meals, and I can change it. One tap confirms. HK$72 left.",
     "setup": [{"do": "addPayment", "amount": "50", "category": "main", "note": "KFC dinner"}, {"do": "tap"}, {"do": "show", "screen": "today"}],
     "actions": [
       {"at": 0, "do": "scrollTo", "selector": "#review-card"},
@@ -77,12 +77,12 @@ export const TIMELINE = [
     "title": "Scan a receipt",
     "start": 43,
     "end": 57,
-    "caption": "Camera screen, a sample receipt read offline on the phone: HK$50.60, the shop, Main meals. Add payment opens prefilled; you check it and Save.",
-    "narration": "Paid cash? Snap the receipt. It's read offline, on the phone. The total and the fund are filled in, and I confirm before anything is saved.",
+    "caption": "A real fusion receipt (card numbers covered) read offline: HK$15.10, the subtotal matched by the card line, Main meals. Add payment opens prefilled; you check it and Save: HK$56.90 left today.",
+    "narration": "Snap the receipt. This is a real fusion receipt, read offline. HK$15.10 and the fund are filled in, and I confirm before anything is saved.",
     "setup": [{"do": "addPayment", "amount": "50", "category": "main", "note": "KFC dinner"}, {"do": "tap"}, {"do": "show", "screen": "today"}, {"do": "confirmReview"}],
     "actions": [
       {"at": 0, "do": "openCamera"},
-      {"at": 2, "do": "scanInCamera", "file": "receipt-1-noodle-bar.png"},
+      {"at": 2, "do": "scanInCamera", "file": "receipt-fusion.png"},
       {"at": 8.5, "do": "checkInAdd"},
       {"at": 11.5, "do": "save"}
     ]

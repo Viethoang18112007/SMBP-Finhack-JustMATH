@@ -21,9 +21,9 @@ with the normal caption and controls.
 | --- | --- | --- | --- |
 | 0:00 to 0:10 | A weekly budget for HK students | Five funds for the week. Today you can spend HK$140 on food, and the Cooked meter says: Chill. | Here's SSUST. The first thing I see: HK$140, what I can spend on food today. And the Cooked meter says: chill. |
 | 0:10 to 0:22 | Quick add from the widget | "$50 KFC dinner": KFC is a food chain, so Main meals. Saved through the normal Add flow: HK$90 left today. | Logging takes three seconds. From the home-screen widget I type "fifty dollars, KFC dinner". Offline rules know KFC is a meal. Saved: HK$90 left. |
-| 0:22 to 0:33 | A payment notification | A simulated Apple Pay tap arrives as a notification, then waits in the notification centre. Connected payments are simulated: no card, no bank. | When I pay with my phone, the payment arrives as a notification. In this prototype it's simulated: no real card, no bank. |
-| 0:33 to 0:43 | To review | HK$38 at a sample coffee kiosk: Snacks, picked from "coffee", and the typo check passed. Confirm uses the normal payment rules: HK$52 left today. | SSUST guesses the fund from the shop name, coffee means Snacks, and checks the amount for typos. One tap confirms. HK$52 left. |
-| 0:43 to 0:57 | Scan a receipt | Camera screen, a sample receipt read offline on the phone: HK$50.60, the shop, Main meals. Add payment opens prefilled; you check it and Save. | Paid cash? Snap the receipt. It's read offline, on the phone. The total and the fund are filled in, and I confirm before anything is saved. |
+| 0:22 to 0:33 | A payment notification | An Apple Pay payment, HK$18 at 7-Eleven, arrives as a notification, then waits in the notification centre. Simulated here (no card, no bank); the iPhone app gets real ones through Shortcuts. | When I pay with my phone, the payment arrives by itself. Here it's simulated; in the iPhone app a Shortcuts automation sends the real one. |
+| 0:33 to 0:43 | To review | HK$18 at 7-Eleven: no clear clue in the name, so Main meals (you can change it), and the typo check passed. Confirm uses the normal payment rules: HK$72 left today. | SSUST picks a fund from the shop name and says why; 7-Eleven gives no clear clue, so Main meals, and I can change it. One tap confirms. HK$72 left. |
+| 0:43 to 0:57 | Scan a receipt | A real fusion receipt (card numbers covered) read offline: HK$15.10, the subtotal matched by the card line, Main meals. Add payment opens prefilled; you check it and Save: HK$56.90 left today. | Snap the receipt. This is a real fusion receipt, read offline. HK$15.10 and the fund are filled in, and I confirm before anything is saved. |
 | 0:57 to 1:11 | When a payment goes over | HK$160 is HK$20 over today's HK$140. You choose: Snacks, then flexible funds, Long-term Savings last. Fixed Bills is never used. Undo puts it all back. | Now the moment that matters: a HK$160 meal, HK$20 over today. SSUST asks where it comes from: snacks first, then flexible funds, savings last. Bills are never touched, and undo puts it all back. |
 | 1:11 to 1:25 | Where can I eat with what is left? | Near campus (HKUST in this demo): each place's own menu range or its chain's published price, with the source and the date. No verified dish price ships yet; the rest are estimates. | So where can I eat with what's left? The map shows places near campus that fit today's budget, with menu prices, their source and the date. |
 | 1:25 to 1:41 | How cooked are you? | Three demo weeks: calm, tight, cooked. The score adds up three plain rules (pace, funds running out, savings used), not AI. The red dot: where you hit HK$0. | And the question every student asks: how cooked am I? Three plain rules: spending pace, funds running out, savings used. This week: cooked. The curve shows the day I'll hit zero, before it happens. |
@@ -58,7 +58,7 @@ with the normal caption and controls.
 **0:43 Scan a receipt**
 
 - 43.0 s: openCamera
-- 45.0 s: scanInCamera (file=receipt-1-noodle-bar.png)
+- 45.0 s: scanInCamera (file=receipt-fusion.png)
 - 51.5 s: checkInAdd
 - 54.5 s: save
 
@@ -109,7 +109,8 @@ with the normal caption and controls.
 - In the iPhone app, bank cards in Apple Pay arrive by themselves through a Shortcuts automation.
   Octopus is not automatic: iOS gives no amount for an Octopus tap, so you type it in To review.
 - The Assistant and the Cooked score are offline rules, not AI.
-- The receipt is a sample image read by offline OCR; OCR can misread, so you confirm before saving.
+- The receipt is a real fusion receipt photo (card and reference numbers covered) read by offline OCR;
+  OCR can misread, so you confirm before saving.
 - Prices: each place's own menu range or a chain's published price, with source and date. No
   verified dish price ships yet. The rest are estimates.
 - The Cooked step switches between three demo weeks (Sample week, Week already over, Cooked week).

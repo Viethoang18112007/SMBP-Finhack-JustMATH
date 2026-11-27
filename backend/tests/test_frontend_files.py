@@ -953,7 +953,12 @@ class ConnectedPayments(unittest.TestCase):
         self.assertGreaterEqual(self.inbox.count('<span class="sim-tag">Simulated</span>'), 3)
 
     def test_sample_merchants_only(self):
+        # One exception: the demo's first Apple Pay tap copies a real Apple Pay message (still
+        # marked Simulated, with a sample card).
+        real_example = "7-Eleven, Hk (1771)"
         for merchant in re.findall(r'merchant: "([^"]+)"', self.inbox):
+            if merchant == real_example:
+                continue
             self.assertTrue(merchant.startswith("Sample "), merchant)
 
     def test_confirm_goes_through_the_server_flow(self):
@@ -1323,3 +1328,26 @@ class Declutter(unittest.TestCase):
         order = [tail.index(x) for x in ("${budgetCard}", "${modeCard}", "${connectedCard()}", "${display}", "${help}")]
         self.assertEqual(order, sorted(order))
         self.assertIn('<details class="card fold" id="connected-card">', (JS_ROOT / "inbox.js").read_text(encoding="utf-8"))
+
+
+class SubmissionDemo(unittest.TestCase):
+    """The hosted demo: a Play the demo button beside the phone, a real receipt and a real-looking tap."""
+
+    def read(self, *parts):
+        return (JS_ROOT.joinpath(*parts)).read_text(encoding="utf-8")
+
+    def test_play_button_beside_the_phone_in_demo(self):
+        inbox = self.read("inbox.js")
+        side = inbox[inbox.index("export function renderDeskSide"):]
+        side = side[:side.index("\n}\n")]
+        self.assertIn('data-tour="auto"', side)
+        self.assertIn("Play the demo", side)
+        self.assertIn('state.data.mode === "demo"', side)
+
+    def test_receipt_step_reads_the_fusion_receipt(self):
+        self.assertTrue((FRONTEND / "img" / "samples" / "receipt-fusion.png").is_file())
+        self.assertIn('"file": "receipt-fusion.png"', self.read("demo-timeline.js"))
+        self.assertIn('["receipt-fusion.png", "fusion (HKUST)"]', self.read("widget.js"))
+
+    def test_first_apple_pay_tap_is_the_seven_eleven_example(self):
+        self.assertIn('{ merchant: "7-Eleven, Hk (1771)", amount: "18", card: "Sample card 0000" }', self.read("inbox.js"))

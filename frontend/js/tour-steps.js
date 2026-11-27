@@ -217,7 +217,7 @@ export const STEPS = [
   {
     "id": "widget",
     "title": "The widget follows",
-    "body": "Confirmed: HK$38 from Snacks. The widget already shows HK$52 left today, like the app.",
+    "body": "Confirmed: HK$18 to Main meals. The widget already shows HK$72 left today, like the app.",
     "screen": null,
     "target": "#home-widgets",
     "dynamic": false,

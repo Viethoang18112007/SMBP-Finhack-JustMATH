@@ -24,8 +24,10 @@ import { readTotal } from "./ocr.js";
 import { streakChip } from "./rewards.js";
 import { state } from "./store.js";
 
-// Sample receipt images served from frontend/img/samples (fictional, marked Sample on the image).
+// Sample receipt images served from frontend/img/samples: a real fusion receipt photo (card and
+// reference numbers covered), then fictional ones marked Sample on the image.
 const SAMPLES = [
+  ["receipt-fusion.png", "fusion (HKUST)"],
   ["receipt-mcd.png", "McDonald's"],
   ["receipt-tamjai.png", "TamJai SamGor"],
   ["receipt-bookstore.png", "HKUST Bookstore"],
