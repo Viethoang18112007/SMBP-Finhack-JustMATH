@@ -1,8 +1,8 @@
-# SSUST: Smart Spending for Students
+# UniVault: Smart Spending for Students
 
 [![tests](https://github.com/Viethoang18112007/SMBP-Finhack-JustMATH/actions/workflows/tests.yml/badge.svg?branch=ssust-app)](https://github.com/Viethoang18112007/SMBP-Finhack-JustMATH/actions/workflows/tests.yml)
 
-**A weekly budget for university students in Hong Kong that tells you what you can spend on food today, and where near campus that money still buys a meal.** Built for BUHack 2.0 (FinTech track).
+**A weekly budget for university students in Hong Kong that tells you what you can spend on food today, and where near campus that money still buys a meal.** Built by team JustMATH for the Finance track of [SMBP FinHack](https://smbp-finhack.devpost.com/).
 
 **Live demo:** <https://ssust-api.onrender.com> (Demo mode, sample week). It runs on Render's free plan, so after a quiet spell the first visit can take about a minute while the server wakes up. On a screen wider than 900 px the app sits inside a simulated phone. Press **Play the demo** beside the phone (or **Show me around** in the welcome card) and it runs on its own for 2 minutes through the main features: quick add, an Apple Pay payment arriving, a real receipt scanned, overspending, the map, the Cooked score and the budget.
 
@@ -56,7 +56,7 @@ Taken from the real app in Demo mode (sample week, Wed 11 Nov 2026), inside the 
 
 ![The camera screen after reading the fusion receipt: Read from the receipt 1 小計 $15.10, Main meals, HK$15.10, Why: no clear clue, Not sure: check the fund, and Check in Add payment](docs/screenshots/scan.png)
 
-**When a payment goes over.** A HK$160 main meal is HK$20 more than the HK$140 left today, so SSUST asks where the extra comes from. Nothing is saved until you confirm; it only moves budget between your own funds.
+**When a payment goes over.** A HK$160 main meal is HK$20 more than the HK$140 left today, so UniVault asks where the extra comes from. Nothing is saved until you confirm; it only moves budget between your own funds.
 
 ![The overspend step for a HK$160 main meal: take the extra HK$20 from Snacks (recommended) or from the flexible funds, then Confirm](docs/screenshots/cover.png)
 
@@ -127,7 +127,7 @@ python -m unittest discover -s backend/tests -t backend -v
 
 The suite (1029 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, places, prices and budget fit, receipts, rewards, backup and restore, the wallet and widget endpoints, the HTTP API on a real server, the launchers (including a real `run.py` process), the frontend files, the demo timeline and this README. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `ssust-app`.
 
-A smoke test starts SSUST on a free port with an empty, temporary data folder and checks every file the page loads and every endpoint the widgets use:
+A smoke test starts UniVault on a free port with an empty, temporary data folder and checks every file the page loads and every endpoint the widgets use:
 
 ```sh
 python scripts/smoke_fresh_clone.py           # this folder, as it is on disk
@@ -143,9 +143,9 @@ The same `frontend/` folder runs inside an iOS app made with **Capacitor 8** (Sw
 - **Build:** `codemagic.yaml` has one workflow, **`ios-testflight`**, on a Codemagic Mac mini M2: `npm ci`, `npx cap sync ios`, automatic code signing through the App Store Connect integration (no key, certificate or profile is stored in this repository), a build number one above the latest TestFlight build, `xcode-project build-ipa`, then upload to App Store Connect. Internal testers get every build on **TestFlight**; external beta review is requested by hand. Anyone can join the beta with the public link in [Try it on your iPhone](#try-it-on-your-iphone-testflight).
 - Inside the app there is no phone frame and no demo. API calls go to the hosted server (`NATIVE_API_BASE` in `frontend/js/config.js`, the Render service `ssust-api`). Each phone sends a random id of its own (`X-SSUST-Device`) and gets its own data on the server (`data/devices/<id>/`, at most 200 phones per server). The server answers the app origin (`capacitor://localhost`) with CORS headers on `/api/` only; every other origin gets none.
 
-**Apple Pay (Shortcuts).** Settings > **Apple Pay and widget** gives the URL and this phone's header to paste into a Shortcuts automation ("When I tap any card in Wallet" > Get Contents of URL, POST, JSON `amount`, `merchant`, `card`). The amount is read from text like "HK$38.00" or a JSON number, always into integer cents. Bank cards in Apple Pay are fully automatic: amount, merchant and card arrive by themselves. **Octopus is not:** iOS gives Shortcuts no amount for a transit card tap, so SSUST keeps it in To review as "Octopus tap at hh:mm | amount?" and you type the amount (Confirm needs an amount above zero and runs the usual typo check). iOS can fire the automation twice for one tap, so taps of the same card on the same phone within 2 minutes are one item, and a later message with the amount fills it in. A run with every field empty is the play-button test ("Test run: the link works"). Settings shows which fields the last message carried (names only, never the amount or the merchant). Manual check: [docs/OCTOPUS_TEST.md](docs/OCTOPUS_TEST.md).
+**Apple Pay (Shortcuts).** Settings > **Apple Pay and widget** gives the URL and this phone's header to paste into a Shortcuts automation ("When I tap any card in Wallet" > Get Contents of URL, POST, JSON `amount`, `merchant`, `card`). The amount is read from text like "HK$38.00" or a JSON number, always into integer cents. Bank cards in Apple Pay are fully automatic: amount, merchant and card arrive by themselves. **Octopus is not:** iOS gives Shortcuts no amount for a transit card tap, so UniVault keeps it in To review as "Octopus tap at hh:mm | amount?" and you type the amount (Confirm needs an amount above zero and runs the usual typo check). iOS can fire the automation twice for one tap, so taps of the same card on the same phone within 2 minutes are one item, and a later message with the amount fills it in. A run with every field empty is the play-button test ("Test run: the link works"). Settings shows which fields the last message carried (names only, never the amount or the merchant). Manual check: [docs/OCTOPUS_TEST.md](docs/OCTOPUS_TEST.md).
 
-**Widgets (WidgetKit, iOS 17+).** The SSUST widget reads `GET /api/widget` with this phone's id, which the app hands over through the App Group `group.com.adamattar.ssust`, so nothing is pasted. The app asks the widget to refresh when today's numbers change; the widget also refreshes about every 30 minutes and keeps the last answer for when the server sleeps. The **Quick type** widget opens the app through `ssust://quick` on a typing sheet with the field focused.
+**Widgets (WidgetKit, iOS 17+).** The UniVault widget reads `GET /api/widget` with this phone's id, which the app hands over through the App Group `group.com.adamattar.ssust`, so nothing is pasted. The app asks the widget to refresh when today's numbers change; the widget also refreshes about every 30 minutes and keeps the last answer for when the server sleeps. The **Quick type** widget opens the app through `ssust://quick` on a typing sheet with the field focused.
 
 ## Your data and the backup
 
