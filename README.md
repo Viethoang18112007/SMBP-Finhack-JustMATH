@@ -4,9 +4,16 @@
 
 **A weekly budget for university students in Hong Kong that tells you what you can spend on food today, and where near campus that money still buys a meal.** Built for BUHack 2.0 (FinTech track).
 
-**Live demo:** <https://ssust-api.onrender.com> (Demo mode, sample week). It runs on Render's free plan, so after a quiet spell the first visit can take about a minute while the server wakes up. On a screen wider than 900 px the app sits inside a simulated phone; press **Show me around** for the 2 minute auto-play.
+**Live demo:** <https://ssust-api.onrender.com> (Demo mode, sample week). It runs on Render's free plan, so after a quiet spell the first visit can take about a minute while the server wakes up. On a screen wider than 900 px the app sits inside a simulated phone. Press **Play the demo** beside the phone (or **Show me around** in the welcome card) and it runs on its own for 2 minutes through the main features: quick add, an Apple Pay payment arriving, a real receipt scanned, overspending, the map, the Cooked score and the budget.
 
-Demo video: https://youtu.be/dwNjo46av5E
+![The live demo page: the simulated phone on its home screen, and beside it See it on its own with the Play the demo button, then the Demo controls](docs/screenshots/demo-button.png)
+
+## Try it on your iPhone (TestFlight)
+
+1. On your iPhone (iOS 15 or later), install **TestFlight** from the App Store.
+2. On the same iPhone, open <https://testflight.apple.com/join/KxvhjN2h> and tap **Accept**, then **Install**.
+3. Open the app (its name on the home screen is **UniVault**) and set your weekly budget. It uses the hosted server, so the first launch after a quiet spell can take about a minute.
+4. Optional: in **Settings > Apple Pay and widget**, copy the link and header into a Shortcuts automation ("When I tap any card in Wallet") so Apple Pay payments arrive in To review by themselves, and add the widget to your home screen (iOS 17 or later).
 
 ## What it does
 
@@ -25,19 +32,6 @@ You split your week's money into five funds (Main meals, Snacks, Fixed Bills, Ex
 - **Backup, restore and offline (iPhone).** The phone keeps a copy of all its data. When the free server has been wiped, the app restores it; when the server cannot be reached, the last saved numbers show read-only.
 - **Guided tour and auto-play.** A 15 step tour with bubbles on the real screens (Live and Demo), and a 2:00 auto-play of the main story for presentations (Demo only).
 
-## Honest limits
-
-- **No bank login, no bank API.** SSUST never connects to a bank or moves money. Amounts are typed, scanned, or sent by your own Shortcuts automation.
-- **Octopus is not supported as an automatic source.** An Octopus tap in Wallet does start the iOS automation, but iOS does not give Shortcuts the amount of a transit card tap. The app only keeps such a tap in To review for you to type the amount.
-- **Connected payments in the web demo are simulated.** The Apple Wallet, Octopus and HSBC switches and "Simulate an Apple Pay tap" create sample payments with fictional merchants. Only the iPhone app receives real Apple Pay payments (bank cards, through Shortcuts).
-- **Plain rules, not AI.** The fund choice, the overspend order, the typo check, the Cooked score and the warnings are fixed, tested rules on your own numbers. When nothing matches, quick add says "Not sure" and you pick the fund.
-- **Receipt reading can misread.** The amount, shop and fund are only pre-filled; you always check them.
-- **Prices are mostly estimates.** OpenStreetMap rarely has prices. Menu ranges can go out of date, the 20 chain ranges are one range for every branch and none has been checked in a shop yet, and no verified dish price ships.
-- **The hosted demo is shared and temporary.** Everyone who opens it sees the same demo data, and Render's free plan wipes the disk on every restart.
-- **The phone frame on the web is a simulation** for demos; the home screen icons are placeholders. The WidgetKit widgets are built on Codemagic but have not yet been run on a device.
-
-More detail in [Limits](#limits) below.
-
 ## Screenshots
 
 Taken from the real app in Demo mode (sample week, Wed 11 Nov 2026), inside the simulated phone shown on wide screens.
@@ -50,17 +44,17 @@ Taken from the real app in Demo mode (sample week, Wed 11 Nov 2026), inside the 
 
 ![Simulated home screen: HK$90 left today, Comfortable, the six funds this week, and the quick add widget with Added: Main meals -HK$50 (KFC dinner)](docs/screenshots/widgets.png)
 
-**Connected payments, simulated in the web demo.** A simulated Apple Pay tap arrives as a notification, then waits on Today in To review with a fund picked from the merchant name ("coffee": Snacks) and the effect on today.
+**Apple Pay payments.** The demo copies a real Apple Pay payment (HK$18 at 7-Eleven, simulated in the web demo, with a sample card). It arrives as a notification, then waits on Today in To review with a fund picked from the merchant name and the reason (here: no clear clue, so Main meals) and the effect on today.
 
-![A notification at the top of the phone: Apple Pay, Simulated, HK$38 at Sample Coffee Kiosk, tap to review](docs/screenshots/notification.png)
+![A notification at the top of the phone: Apple Pay, Simulated, HK$18 at 7-Eleven, Hk (1771), tap to review](docs/screenshots/notification.png)
 
-![The To review card on Today: Apple Pay, Simulated, HK$38, Sample Coffee Kiosk, Snacks picked from coffee, Confirm and Dismiss, Today left HK$52](docs/screenshots/review.png)
+![The To review card on Today: Apple Pay, Simulated, HK$18, 7-Eleven, Hk (1771), Main meals picked with the reason no clear clue, Confirm and Dismiss, Today left HK$72](docs/screenshots/review.png)
 
 ![Settings, Connected payments: Apple Wallet on, Octopus and HSBC off, marked Simulated, with Simulate an Apple Pay tap and the line Nothing here reads your bank](docs/screenshots/connected.png)
 
-**Scan a receipt.** A sample receipt read offline in the camera screen: TOTAL HK$50.60, the shop, Main meals and why. "Check in Add payment" opens the form pre-filled.
+**Scan a receipt.** A real fusion receipt from HKUST (card and reference numbers covered) read offline in the camera screen: HK$15.10 from the subtotal, matched by the card line, the shop, the fund and why. "Check in Add payment" opens the form pre-filled.
 
-![The camera screen after reading the Lucky Bowl Noodle Bar sample receipt: Main meals, HK$50.60, Why: noodle, and Check in Add payment](docs/screenshots/scan.png)
+![The camera screen after reading the fusion receipt: Read from the receipt 1 小計 $15.10, Main meals, HK$15.10, Why: no clear clue, Not sure: check the fund, and Check in Add payment](docs/screenshots/scan.png)
 
 **When a payment goes over.** A HK$160 main meal is HK$20 more than the HK$140 left today, so SSUST asks where the extra comes from. Nothing is saved until you confirm; it only moves budget between your own funds.
 
@@ -131,7 +125,7 @@ From the repository root, on any OS:
 python -m unittest discover -s backend/tests -t backend -v
 ```
 
-The suite (1026 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, places, prices and budget fit, receipts, rewards, backup and restore, the wallet and widget endpoints, the HTTP API on a real server, the launchers (including a real `run.py` process), the frontend files, the demo timeline and this README. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `ssust-app`.
+The suite (1029 tests) covers the money rules, input validation, dates, the SQLite store, the service layer, places, prices and budget fit, receipts, rewards, backup and restore, the wallet and widget endpoints, the HTTP API on a real server, the launchers (including a real `run.py` process), the frontend files, the demo timeline and this README. No test touches the network or your `data/` folder. GitHub Actions runs it on Ubuntu and Windows on every push and pull request to `ssust-app`.
 
 A smoke test starts SSUST on a free port with an empty, temporary data folder and checks every file the page loads and every endpoint the widgets use:
 
@@ -146,7 +140,7 @@ The same `frontend/` folder runs inside an iOS app made with **Capacitor 8** (Sw
 
 - `package.json` and `capacitor.config.json` (app id `com.adamattar.ssust`, web folder `frontend`) describe the shell; `ios/` is the Xcode project. It adds the `ReceiptScanner` plugin (`ios/App/App/ReceiptScanner.swift`, Apple Vision text recognition in English, Traditional and Simplified Chinese) and the widget extension (`ios/App/SSUSTWidget`).
 - After changing `frontend/`, run `npx cap sync ios` (Node 22 or later) to copy it into the iOS project.
-- **Build:** `codemagic.yaml` has one workflow, **`ios-testflight`**, on a Codemagic Mac mini M2: `npm ci`, `npx cap sync ios`, automatic code signing through the App Store Connect integration (no key, certificate or profile is stored in this repository), a build number one above the latest TestFlight build, `xcode-project build-ipa`, then upload to App Store Connect. Internal testers get every build on **TestFlight**; external beta review is requested by hand.
+- **Build:** `codemagic.yaml` has one workflow, **`ios-testflight`**, on a Codemagic Mac mini M2: `npm ci`, `npx cap sync ios`, automatic code signing through the App Store Connect integration (no key, certificate or profile is stored in this repository), a build number one above the latest TestFlight build, `xcode-project build-ipa`, then upload to App Store Connect. Internal testers get every build on **TestFlight**; external beta review is requested by hand. Anyone can join the beta with the public link in [Try it on your iPhone](#try-it-on-your-iphone-testflight).
 - Inside the app there is no phone frame and no demo. API calls go to the hosted server (`NATIVE_API_BASE` in `frontend/js/config.js`, the Render service `ssust-api`). Each phone sends a random id of its own (`X-SSUST-Device`) and gets its own data on the server (`data/devices/<id>/`, at most 200 phones per server). The server answers the app origin (`capacitor://localhost`) with CORS headers on `/api/` only; every other origin gets none.
 
 **Apple Pay (Shortcuts).** Settings > **Apple Pay and widget** gives the URL and this phone's header to paste into a Shortcuts automation ("When I tap any card in Wallet" > Get Contents of URL, POST, JSON `amount`, `merchant`, `card`). The amount is read from text like "HK$38.00" or a JSON number, always into integer cents. Bank cards in Apple Pay are fully automatic: amount, merchant and card arrive by themselves. **Octopus is not:** iOS gives Shortcuts no amount for a transit card tap, so SSUST keeps it in To review as "Octopus tap at hh:mm | amount?" and you type the amount (Confirm needs an amount above zero and runs the usual typo check). iOS can fire the automation twice for one tap, so taps of the same card on the same phone within 2 minutes are one item, and a later message with the amount fills it in. A run with every field empty is the play-button test ("Test run: the link works"). Settings shows which fields the last message carried (names only, never the amount or the merchant). Manual check: [docs/OCTOPUS_TEST.md](docs/OCTOPUS_TEST.md).
@@ -296,7 +290,7 @@ Levels: **Chill** (under 20), **Fine** (under 40), **Sweating** (under 60), **Co
 3. `assistant.parse_entry` picks the fund from the merchant, gives the reason, and runs the typo check.
 4. Add payment opens **pre-filled** ("Read from receipt: check it"). **It never saves by itself.**
 
-The camera screen has a **Samples** row of six sample receipt images (`frontend/img/samples/`), all marked Sample, that go through the same real OCR.
+The camera screen has a **Samples** row (`frontend/img/samples/`) that goes through the same real OCR: a real fusion receipt photo (card and reference numbers covered) and six fictional receipts marked Sample.
 
 ## Where can I eat with what's left
 
@@ -325,12 +319,12 @@ The Map's **Groceries** mode shows supermarkets and convenience stores, 15 simpl
 
 ![Auto-play, step 6 of 10, the overspend step for a HK$160 main meal](docs/screenshots/tour-2.png)
 
-![Auto-play, step 5 of 10, the receipt scan step: the sample receipt read as HK$50.60, Main meals](docs/screenshots/tour-scan.png)
+![Auto-play, step 5 of 10, the receipt scan step: the fusion receipt read as HK$15.10, Main meals](docs/screenshots/tour-scan.png)
 
 ![Auto-play, step 7 of 10, the map step: places near HKUST with their menu ranges and the source of the first one](docs/screenshots/tour-3.png)
 
 - **Guided tour:** the **?** button in the header (or "Take the tour" in Settings > Demo & help). It works in Live and Demo and only moves between screens: it never saves anything. Fifteen steps: the widgets, today's money, the next 30 days, this week, the funds as tanks, adding a payment, the overspend step, undo, quick add, receipt scan, connected payments, Week, and the map.
-- **Auto-play** (Demo only): **Show me around** in the welcome card, or **Play the demo** in Settings > Demo & help. One timeline, 10 steps in exactly 2:00: today's HK$140 and the Cooked meter, quick add `$50 KFC dinner` (HK$90 left), a simulated Apple Pay notification, the review (HK$52 left), a sample receipt read offline and saved, the HK$160 overspend step and Undo, the map with menu and chain prices, the Cooked score across three demo weeks, the budget sliders, and an honest outro. The timeline lives in `frontend/js/demo-timeline.js`; [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) with timestamps and narration is generated from it (`python tools/demo_script.py --write`, which fails if the total is over 2:00). Pause, Back, Next, **Restart** and **Skip tour** are on the caption; add `?timer=0` to hide the corner timer.
+- **Auto-play** (Demo only): **Play the demo** beside the phone, **Show me around** in the welcome card, or **Play the demo** in Settings > Demo & help. One timeline, 10 steps in exactly 2:00: today's HK$140 and the Cooked meter, quick add `$50 KFC dinner` (HK$90 left), a simulated Apple Pay notification (HK$18 at 7-Eleven), the review (HK$72 left), the real fusion receipt read offline and saved (HK$15.10, HK$56.90 left), the HK$160 overspend step and Undo, the map with menu and chain prices, the Cooked score across three demo weeks, the budget sliders, and an honest outro. The timeline lives in `frontend/js/demo-timeline.js`; [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) with timestamps and narration is generated from it (`python tools/demo_script.py --write`, which fails if the total is over 2:00). Pause, Back, Next, **Restart** and **Skip tour** are on the caption; add `?timer=0` to hide the corner timer.
 - **Record mode:** open `/?record=1`. A pointer glides to each control before the same real click happens; captions stay as subtitles, the buttons and demo controls are hidden. Space starts a take, Esc stops it.
 - **Safety:** auto-play refuses to start in Live and never auto-starts. It resets the demo week before it begins and again when it ends, is skipped, or stops because something failed. A reload in the middle of a run resets the demo week on the next load.
 - **Phone view:** on screens wider than 900 px the app sits inside a generic phone frame with a status bar, a swipeable home screen with widgets, and its own simulated notifications (Settings > Display > Phone view turns it off). Elsewhere, the **Widgets** button in the header opens the same home screen full screen.
@@ -394,20 +388,6 @@ Start with the smoke test (`python scripts/smoke_fresh_clone.py`, see [Running t
 | `Could not open the data folder ... newer` | The `data/` folder was written by a newer version. Run `python run.py --data data-new` for a separate folder. |
 | `Untrusted host.` | Open <http://127.0.0.1:8765> or <http://localhost:8765>. |
 | Receipt reading never finishes | The browser reader needs WebAssembly SIMD (Chrome, Edge, Firefox, Safari 16.4 or newer). Type the amount instead. |
-
-## Limits
-
-- **No bank connection and no real money.** You type, scan, or send (Apple Pay through Shortcuts) what you spend. Apple's FinanceKit does not cover Hong Kong and needs a special entitlement; Octopus and HSBC have no public API for individuals.
-- **Octopus has no automatic amount.** iOS gives Shortcuts no amount for an Octopus tap, so it is not supported as an automatic source; such a tap waits in To review for you to type the amount. If iOS ever sent a tap with every field empty, it would look exactly like the play-button test and be ignored.
-- **Connected payments are simulated in the web demo.** A "tap" there is a sample payment with a fictional merchant.
-- **Plain rules, not AI.** Fund picking is chain names and keywords; it says "Not sure" when nothing matches.
-- **Receipt scanning can misread**; you always confirm. On the web, the first scan loads about 8 MB of OCR files from the app itself.
-- **Prices are mostly estimates.** 11 places have an official menu range (menus change), 20 chain ranges are not yet checked in a shop, verified dish prices ship empty. The chains' own sites show no prices and the delivery sites refuse automated reading, so no other prices were added.
-- **The ranking only covers the nearest 60 places** in the chosen radius.
-- **Blank map tiles offline.** Without the internet, pins and the list still work from the snapshot, but the street map behind them stays blank. OpenStreetMap's tile servers are meant for light demo use.
-- **The hosted server is shared and wiped on restart** (free plan). `run.py` is one user per computer and listens on `127.0.0.1` only.
-- **iPhone app: the server is a cache, the phone copy is the backup.** Deleting the app deletes its copy and its id. A restore keeps what the server already has (a budget set on the empty server before the restore wins over the copy's). The copy is only as recent as the last time the app reached the server. The widget keeps its last numbers while the server sleeps, but right after a wipe it can show "set your budget" until the app is opened once.
-- **The web phone frame is a simulation** for demos; the home screen icons are placeholders. The WidgetKit widgets are built on Codemagic but not yet run on a device.
 
 ## Credits
 

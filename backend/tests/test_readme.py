@@ -40,10 +40,6 @@ class Readme(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue((ROOT / path).is_file(), path)
 
-    def test_demo_video_link(self):
-        line = next((l for l in text().splitlines() if l.startswith("Demo video:")), "")
-        self.assertEqual(line, "Demo video: https://youtu.be/dwNjo46av5E")
-
     def test_no_long_dashes(self):
         self.assertNotIn("—", text())
         self.assertNotIn("–", text())
