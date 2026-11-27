@@ -162,7 +162,7 @@ export const TIMELINE = [
     "start": 112,
     "end": 120,
     "caption": "Real: the budget rules, offline OCR, cited price sources. Simulated: connected payments. The assistant is offline rules. No bank connection.",
-    "narration": "Real: the budget rules, offline receipts, cited prices. Simulated: connected payments. No bank, no cloud. That's SSUST.",
+    "narration": "Real: the budget rules, offline receipts, cited prices. Simulated: connected payments. No bank login. That's SSUST.",
     "setup": [],
     "actions": [
       {"at": 0, "do": "show", "screen": "home"}

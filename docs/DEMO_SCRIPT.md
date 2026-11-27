@@ -28,7 +28,7 @@ with the normal caption and controls.
 | 1:11 to 1:25 | Where can I eat with what is left? | Near campus (HKUST in this demo): each place's own menu range or its chain's published price, with the source and the date. No verified dish price ships yet; the rest are estimates. | So where can I eat with what's left? The map shows places near campus that fit today's budget, with menu prices, their source and the date. |
 | 1:25 to 1:41 | How cooked are you? | Three demo weeks: calm, tight, cooked. The score adds up three plain rules (pace, funds running out, savings used), not AI. The red dot: where you hit HK$0. | And the question every student asks: how cooked am I? Three plain rules: spending pace, funds running out, savings used. This week: cooked. The curve shows the day I'll hit zero, before it happens. |
 | 1:41 to 1:52 | Set the week | Slide the weekly total, use the suggested split 40/5/15/10/10/20. A fund under its minimum gets a warning, never a block. | Setting up the week takes seconds: slide the total, take the suggested split. Go under a minimum and it warns you, never blocks. |
-| 1:52 to 2:00 | Real and simulated | Real: the budget rules, offline OCR, cited price sources. Simulated: connected payments. The assistant is offline rules. No bank connection. | Real: the budget rules, offline receipts, cited prices. Simulated: connected payments. No bank, no cloud. That's SSUST. |
+| 1:52 to 2:00 | Real and simulated | Real: the budget rules, offline OCR, cited price sources. Simulated: connected payments. The assistant is offline rules. No bank connection. | Real: the budget rules, offline receipts, cited prices. Simulated: connected payments. No bank login. That's SSUST. |
 
 ## What happens on screen
 
